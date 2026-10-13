@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Classifica Militares"
+description = "Aplicativo público para candidatos da EPCAR e AFA organizarem, consultarem e analisarem listas de classificação. Esta primeira etapa oferece uma interface navegável com seleção de arquivos e exemplos claramente identificados, sem processamento de resultados oficiais."
+version = "1.0.0"
+id = "artifacts/classifica-militares"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21809
+
+[services.development]
+run = "pnpm --filter @workspace/classifica-militares run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/classifica-militares", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/classifica-militares/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21809"
+BASE_PATH = "/"

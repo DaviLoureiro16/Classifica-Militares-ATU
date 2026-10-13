@@ -1,0 +1,86 @@
+# Projeto: Classifica Militares
+
+Crie um aplicativo web chamado **Classifica Militares**, uma ferramenta gratuita e pública para auxiliar candidatos de concursos militares a organizar, consultar e analisar listas de classificação.
+
+## 1. Objetivo
+
+O sistema deverá permitir, inicialmente, trabalhar com dois concursos:
+
+- EPCAR
+- AFA
+
+O aplicativo poderá futuramente importar resultados oficiais, organizar candidatos, recalcular classificações, gerar arquivos Excel e PDF, consultar candidatos individualmente e apresentar análises históricas de classificação.
+
+**Nesta primeira etapa, construa somente a base do aplicativo e sua interface. Não tente implementar todas as funcionalidades finais.**
+
+## 2. Tecnologias
+
+- React
+- TypeScript
+- CSS responsivo
+- Estrutura de código organizada e fácil de manter
+
+Use ferramentas gratuitas e bibliotecas de código aberto quando possível. Não configure APIs pagas, serviços externos pagos, autenticação paga ou banco de dados desnecessário nesta etapa.
+
+## 3. Identidade visual
+
+Crie uma interface profissional, moderna e sóbria, inspirada em sistemas de organização e análise de resultados acadêmicos e militares.
+
+Utilize:
+- Azul-marinho como cor principal.
+- Branco e cinza-claro como cores de fundo.
+- Verde e vermelho apenas para situações que realmente precisem dessas cores.
+- Tabelas legíveis, espaços bem distribuídos e tipografia clara.
+- Layout adaptável a computadores, tablets e celulares.
+
+O nome **Classifica Militares** deve aparecer com destaque no cabeçalho.
+
+## 4. Páginas
+
+Crie as seguintes páginas, com navegação funcional entre elas:
+
+### Página inicial — `/`
+Apresente o nome do projeto, uma explicação curta e os atalhos para as principais funcionalidades.
+
+### Importar resultados — `/importar`
+Crie uma área para selecionar o concurso (EPCAR ou AFA), escolher arquivos e visualizar os arquivos selecionados.
+
+Nesta etapa, implemente apenas a interface de seleção e validação básica dos arquivos. Não simule que os dados foram processados com sucesso.
+
+### Classificação — `/classificacao`
+Crie a estrutura de uma página para exibir tabelas de classificação, com filtros visuais para concurso e tipo de lista.
+
+Use dados demonstrativos claramente identificados como exemplos, nunca como resultados oficiais.
+
+### Consulta de candidato — `/consulta`
+Crie um campo de pesquisa por nome ou inscrição e uma área para apresentar resultados. Se não houver dados reais carregados, informe isso claramente.
+
+### Sobre o projeto — `/sobre`
+Explique a finalidade da ferramenta e informe que ela é independente das instituições responsáveis pelos concursos, não sendo um sistema oficial da FAB.
+
+## 5. Requisitos de qualidade
+
+- Todos os botões e links devem ter uma função real ou estar claramente identificados como indisponíveis nesta etapa.
+- Não apresente dados fictícios como informações oficiais.
+- Não invente regras de classificação, notas de corte, vagas ou previsões de convocação.
+- Não implemente ainda o motor de reclassificação.
+- Não adicione dependências ou serviços pagos sem necessidade.
+- Não solicite dados pessoais desnecessários.
+- Organize o código para permitir a implementação posterior de importação de PDFs, extração de tabelas, OCR, cálculo de classificação e exportação de arquivos.
+- Preserve uma separação clara entre interface, processamento de dados e regras de negócio.
+- Verifique se o projeto inicia corretamente e corrija os erros básicos de compilação.
+
+## 6. Limites desta etapa
+
+Não tente construir tudo de uma vez. Não implemente banco de dados, autenticação, IA de análise de documentos ou cálculos de classificação nesta fase.
+
+Primeiro, entregue uma base funcional, navegável e visualmente consistente.
+
+Ao terminar, informe:
+1. Quais páginas foram criadas.
+2. Quais funcionalidades já funcionam.
+3. Quais funcionalidades ainda são apenas estruturais.
+4. Como testar o aplicativo.
+5. Se alguma funcionalidade exigiu serviço pago ou configuração adicional.
+
+Não publique o aplicativo automaticamente sem antes me apresentar o resultado para revisão.
