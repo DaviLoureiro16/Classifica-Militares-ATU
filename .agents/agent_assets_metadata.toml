@@ -1,0 +1,72 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "5EY9kgqOom6yKFVtfAxY0"
+uri = "file://docs/ESPECIFICACAO_FUNCIONAL.md"
+type = "text"
+title = "Especificação funcional — Classifica Militares"
+description = "Escopo geral, opções atuais EPCAR/AFA, fluxos previstos e funcionalidades ainda não implementadas."
+logical_id = "b373cf69-6e89-452c-ab3f-8f6a3582ea20"
+content_hash = "sha256:836a076b0b2ef623592a77b8bdb746144e8d7d3482ddd4e131e92ec64ded9ea4"
+size = 4041
+mtime_ms = 1791942493972
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:2322a0c4-7f97-452b-a43d-a313dbb88904/b373cf69-6e89-452c-ab3f-8f6a3582ea20/2ff45d8e-9482-471f-b8c7-023da505ba19"
+storage_version_token = "1791942590229768"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "BzDRfVU8TF6lKTIJvk-LG"
+uri = "file://docs/REGRAS_DE_CLASSIFICACAO.md"
+type = "text"
+title = "Regras de classificação — inventário do ZIP"
+description = "Regras transcritas do Excel-FAB-Assistente 1.31.0, com fontes e limites de aplicabilidade."
+logical_id = "dbefbfbc-f6b3-46be-9e71-02247e7762ef"
+content_hash = "sha256:b3a63c64213d8185203504d67489e9a3ce148739c02966c7d86b5ccb62a5b7cc"
+size = 10621
+mtime_ms = 1791942514799
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:2322a0c4-7f97-452b-a43d-a313dbb88904/dbefbfbc-f6b3-46be-9e71-02247e7762ef/14accca2-e693-4e4f-88fa-0180334ab6fa"
+storage_version_token = "1791942590860804"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "zdWfy-n2lwQcw8153WKUv"
+uri = "file://docs/ESTILO_PDF.md"
+type = "text"
+title = "Estilo de saída — Excel e PDF"
+description = "Estrutura, colunas, paginação, alinhamento e cores prescritos pelo plugin."
+logical_id = "128da245-4a70-4018-aa4a-4013df08a514"
+content_hash = "sha256:579a3708c67e0365c9df73664bd1e171f6d99ebaff86f950596189f4cb9cf2b3"
+size = 5614
+mtime_ms = 1791942526243
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:2322a0c4-7f97-452b-a43d-a313dbb88904/128da245-4a70-4018-aa4a-4013df08a514/33967128-2438-408f-bf51-25440acad0cc"
+storage_version_token = "1791942591407218"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "EwOXgUw9hBeEI1jPWIeFg"
+uri = "file://docs/MATRIZ_DE_TESTES.md"
+type = "text"
+title = "Matriz de testes para futura implementação"
+description = "32 cenários de classificação, etapas, cotas, exportação e pendências, sem dados oficiais inventados."
+logical_id = "67884ab9-9e4e-4700-a8be-8f2198490adc"
+content_hash = "sha256:e9ec2416c9dc1a9d533f68616ffadcf5475cad036b23495c534b77e049b29f32"
+size = 9788
+mtime_ms = 1791942545283
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:2322a0c4-7f97-452b-a43d-a313dbb88904/67884ab9-9e4e-4700-a8be-8f2198490adc/3601e29e-6cc6-4a25-b600-bf38ba13a649"
+storage_version_token = "1791942592721359"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "pXSZOm2YvwKIe5fRwWsSv"
+uri = "file://docs/PENDENCIAS_E_AMBIGUIDADES.md"
+type = "text"
+title = "Pendências e ambiguidades da análise do plugin"
+description = "Versão divergente, regras EPCAR versus AFA, lacunas de fonte e decisões necessárias antes de implementar."
+logical_id = "d959fefd-9597-4d5e-954f-7c3c162226be"
+content_hash = "sha256:84e1127381f0f0276f4146869d9af1964e329f09e7538750b2b5268b6d3f3bc2"
+size = 9359
+mtime_ms = 1791942563631
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:2322a0c4-7f97-452b-a43d-a313dbb88904/d959fefd-9597-4d5e-954f-7c3c162226be/0537b7d4-52d7-44de-b6e1-8a406fd30d39"
+storage_version_token = "1791942593754669"
+content_type = "text/markdown"

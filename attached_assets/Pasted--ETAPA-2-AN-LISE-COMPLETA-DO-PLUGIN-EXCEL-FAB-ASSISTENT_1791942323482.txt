@@ -1,0 +1,54 @@
+# ETAPA 2 — ANÁLISE COMPLETA DO PLUGIN EXCEL-FAB-ASSISTENTE 1.31.0
+
+## Objetivo
+
+Analise integralmente o arquivo ZIP anexado, que contém o plugin Excel-FAB-Assistente 1.31.0, para documentar suas funcionalidades, regras, referências e requisitos de saída antes de implementá-los no Classifica Militares.
+
+Esta é uma etapa de análise e documentação. **Não implemente ainda o motor de classificação nem altere a interface existente.**
+
+## 1. Contexto do projeto
+
+O Classifica Militares será uma plataforma gratuita e pública para organizar, consultar e analisar classificações de concursos militares brasileiros.
+
+A plataforma deverá permitir a expansão para diferentes instituições e forças militares. Entretanto, na versão atual, somente EPCAR e AFA estarão disponíveis.
+
+O Excel-FAB-Assistente 1.31.0 é uma fonte de referência para as regras que efetivamente documenta. Não presuma que suas regras específicas da FAB se aplicam automaticamente a todos os concursos militares.
+
+A arquitetura futura deverá permitir que cada concurso tenha suas próprias regras, documentos, etapas e critérios.
+
+## 2. Leitura integral do ZIP
+
+Primeiro, verifique se o arquivo ZIP está acessível e se é possível extrair seu conteúdo utilizando os recursos disponíveis no ambiente atual.
+
+Se a extração funcionar:
+
+1. Liste a estrutura completa de diretórios e arquivos.
+2. Identifique o arquivo principal de instruções, como `SKILL.md`, `README.md` ou equivalente.
+3. Leia os arquivos de comandos e todas as referências utilizadas pelas instruções principais.
+4. Siga as referências internas para localizar documentos adicionais necessários à compreensão das regras.
+5. Registre os arquivos efetivamente lidos e os arquivos que não puderam ser acessados.
+6. Compare as informações de versão declaradas nos diferentes arquivos. Se houver divergências, documente-as sem presumir qual versão prevalece.
+
+Não se limite ao README ou ao arquivo principal. As regras importantes podem estar em arquivos separados dentro de diretórios como `references/` e `commands/`.
+
+Se a extração falhar, não tente reconstruir o ZIP a partir de fragmentos, inventar seu conteúdo ou afirmar que a análise foi concluída. Informe o erro específico e solicite uma alternativa compatível com os recursos disponíveis.
+
+## 3. Inventário das regras
+
+Identifique e documente todas as regras relevantes encontradas, incluindo, quando existentes:
+
+- Classificação original e recalculada.
+- Critérios de ordenação e desempate.
+- Ampla concorrência e vagas reservadas.
+- Reversão de vagas e movimentação de candidatos entre listas.
+- Decisões judiciais e seus efeitos na classificação.
+- Etapas eliminatórias e respectivas situações.
+- Candidatos ausentes, incapazes, excluídos ou em outras situações previstas.
+- Acumulação histórica de exclusões.
+- Colunas, nomenclaturas e ordem das listas.
+- Formatos de exportação para Excel e PDF.
+- Cores, paginação, fontes, títulos e demais requisitos visuais.
+- Validações, verificações de consistência e casos especiais.
+- Comandos e procedimentos operacionais do plugin.
+
+Para cada regra importante, registre a origem exata: nome

@@ -1,0 +1,134 @@
+# ETAPA 2 — DOCUMENTAÇÃO DAS REGRAS DO CLASSIFICA MILITARES
+
+Nesta etapa, quero documentar as regras de funcionamento antes de começar a implementar o motor de classificação.
+
+O projeto já possui sua estrutura inicial e sua interface. Preserve o que já funciona.
+
+## 1. Contexto do projeto
+
+O **Classifica Militares** será uma plataforma gratuita e pública para organizar, consultar e analisar classificações de concursos militares brasileiros.
+
+A plataforma deverá poder atender diferentes instituições no futuro. Atualmente, porém, somente EPCAR e AFA estarão disponíveis.
+
+O arquivo anexado contém material do Excel-FAB-Assistente 1.31.0. Utilize-o como referência para identificar as funcionalidades e regras aplicáveis aos concursos que ele efetivamente abrange.
+
+**Não presuma que regras específicas da FAB são universais para todos os concursos militares.** A arquitetura deverá permitir que cada concurso tenha suas próprias regras, documentos e critérios.
+
+## 2. Análise do arquivo
+
+Leia o conteúdo do arquivo Markdown anexado.
+
+Identifique:
+- As funcionalidades descritas pelo plugin.
+- As regras de classificação e reclassificação.
+- Os formatos e as estruturas das listas produzidas.
+- Os critérios de ordenação dos candidatos.
+- O tratamento de ampla concorrência, cotas, reversão de vagas e decisões judiciais, quando previstos.
+- O tratamento das etapas eliminatórias e da lista de excluídos.
+- As regras de formatação e exportação para Excel e PDF.
+- Os dados de entrada exigidos para cada operação.
+- As validações e verificações que o sistema deve realizar.
+- As ambiguidades, contradições e informações ausentes.
+
+Se o Markdown fizer referência a outros arquivos que não estejam disponíveis, registre seus nomes e as informações que ainda precisam ser obtidas. Não afirme que leu arquivos aos quais não teve acesso.
+
+## 3. Documentos a criar
+
+Crie a pasta `docs/`, caso ainda não exista, e produza os seguintes documentos:
+
+### `docs/ESPECIFICACAO_FUNCIONAL.md`
+
+Descreva o propósito da plataforma, seus usuários, as funcionalidades, os fluxos de utilização e as responsabilidades de cada módulo.
+
+Separe claramente:
+- Funcionalidades gerais da plataforma.
+- Funcionalidades disponíveis inicialmente para EPCAR e AFA.
+- Funcionalidades planejadas para futuras instituições.
+- Funcionalidades que ainda não foram implementadas.
+
+### `docs/REGRAS_DE_CLASSIFICACAO.md`
+
+Documente as regras de classificação e reclassificação encontradas no material.
+
+Para cada regra, informe, quando possível:
+- Descrição.
+- Dados de entrada necessários.
+- Procedimento esperado.
+- Resultado esperado.
+- Fonte exata no material analisado.
+- Concurso e edição aos quais se aplica.
+- Casos especiais e exceções.
+- Testes necessários para verificar a regra.
+
+Diferencie explicitamente regras confirmadas, interpretações que precisam de validação e regras ainda desconhecidas.
+
+Não transforme suposições em regras oficiais.
+
+### `docs/ESTILO_PDF.md`
+
+Documente os requisitos de apresentação das listas exportadas para PDF e Excel, incluindo ordem das listas, colunas, títulos, cores, paginação, legibilidade e tratamento de textos extensos, somente quando essas informações estiverem respaldadas pelo material.
+
+Identifique separadamente os requisitos confirmados e os que precisam de esclarecimento.
+
+### `docs/MATRIZ_DE_TESTES.md`
+
+Crie uma matriz de testes para validar futuramente o motor de classificação.
+
+Inclua, conforme aplicável:
+- Ordenação e classificação.
+- Empates e dados ausentes.
+- Cotas e ampla concorrência.
+- Reversão de vagas.
+- Candidatos com decisões judiciais.
+- Exclusões em diferentes etapas.
+- Consistência das listas geradas.
+- Exportação para PDF e Excel.
+
+Para cada teste, descreva os dados de entrada, o comportamento esperado e a regra de referência. Se não houver informação suficiente para definir um resultado esperado, marque o teste como pendente em vez de inventar o resultado.
+
+### `docs/PENDENCIAS_E_AMBIGUIDADES.md`
+
+Liste todas as informações que ainda precisam ser verificadas antes da implementação.
+
+Organize-as por prioridade e indique:
+- Qual é a dúvida.
+- Por que ela importa.
+- Qual documento ou informação pode resolvê-la.
+- Qual parte do sistema depende dessa resposta.
+
+Inclua referências a arquivos ausentes citados pelo Markdown.
+
+## 4. Requisitos de arquitetura
+
+A documentação deve orientar uma plataforma extensível para diferentes concursos militares.
+
+As regras específicas de EPCAR e AFA não devem ser misturadas com as regras gerais da plataforma. No futuro, cada concurso deverá poder utilizar seu próprio conjunto de regras e documentos de referência.
+
+Não invente regras para Exército, Marinha ou outras instituições ainda indisponíveis.
+
+O fato de uma funcionalidade estar documentada não significa que ela já esteja implementada no aplicativo.
+
+## 5. Restrições desta etapa
+
+- Não implemente o motor de classificação.
+- Não altere as páginas, os componentes, o visual ou as rotas existentes.
+- Não apague arquivos.
+- Não instale dependências desnecessárias.
+- Não configure serviços pagos.
+- Não crie dados fictícios apresentados como oficiais.
+- Não suponha acesso a arquivos que não foram fornecidos.
+- Não modifique a lógica existente do aplicativo.
+
+Esta etapa deve resultar apenas na documentação solicitada.
+
+## 6. Relatório final
+
+Ao concluir, informe:
+1. Quais documentos foram criados.
+2. Se o arquivo Markdown foi lido integralmente ou apenas parcialmente.
+3. Quais regras importantes foram encontradas.
+4. Quais informações continuam pendentes.
+5. Quais arquivos adicionais seriam necessários para completar a análise.
+6. Se o código e a interface do aplicativo permaneceram inalterados.
+
+Não avance para a implementação do motor de classificação. Aguarde minha revisão da documentação.
