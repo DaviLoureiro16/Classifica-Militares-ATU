@@ -6,6 +6,8 @@ let dom: JSDOM;
 let React: typeof import('react');
 let createRoot: typeof import('react-dom/client')['createRoot'];
 let ImportPageContent: typeof import('../src/pages/import-page')['ImportPageContent'];
+let PdfQualityNotice: typeof import('../src/components/pdf-extraction-review')['PdfQualityNotice'];
+let PdfLayoutPreview: typeof import('../src/components/pdf-extraction-review')['PdfLayoutPreview'];
 let root: ReturnType<typeof createRoot> | null = null;
 let container: HTMLDivElement;
 let confirmResult = true;
@@ -132,6 +134,7 @@ before(async () => {
   Object.assign(globalThis, { React });
   ({ createRoot } = await import('react-dom/client'));
   ({ ImportPageContent } = await import('../src/pages/import-page'));
+  ({ PdfQualityNotice, PdfLayoutPreview } = await import('../src/components/pdf-extraction-review'));
 });
 
 beforeEach(async () => {
@@ -235,4 +238,51 @@ test('limpar todos durante uma leitura cancela o item ativo e descarta o restant
   });
   assert.equal(cards().length, 0);
   assert.ok(container.querySelector('[data-testid="empty-import-list"]'));
+});
+
+test('a prévia apresenta recomendação para revisão sem oferecer conversão não implementada', async () => {
+  assert.ok(PdfQualityNotice);
+  await React.act(async () => {
+    root?.render(React.createElement(PdfQualityNotice, {
+      documentId: 'ficticio',
+      quality: {
+        level: 'caution',
+        pageTextCoverage: 1,
+        recognizedHeader: true,
+        structuredRows: 3,
+        expectedFields: 3,
+        fieldCountConsistency: 2 / 3,
+        incompleteLines: 1,
+        possibleShiftedLines: 0,
+        reasons: ['1 linha fictícia tem menos campos que o padrão observado.'],
+      },
+    }));
+  });
+
+  const notice = container.querySelector('[data-testid="pdf-quality-ficticio"]');
+  assert.ok(notice);
+  assert.match(notice.textContent ?? '', /Algumas linhas podem ter colunas desalinhadas/i);
+  assert.match(notice.textContent ?? '', /planilha original/i);
+  assert.match(notice.textContent ?? '', /não substituem a conferência visual/i);
+  assert.equal(container.querySelector('[data-testid*="converter"]'), null);
+});
+
+test('a prévia tabular identifica campos e mantém o número da linha de origem', async () => {
+  assert.ok(PdfLayoutPreview);
+  await React.act(async () => {
+    root?.render(React.createElement(PdfLayoutPreview, {
+      testId: 'ficticio',
+      lines: [
+        { text: 'Nome  Inscrição', cells: ['Nome', 'Inscricao'] },
+        { text: 'Candidata Fictícia  000123', cells: ['Candidata Fictícia', '000123'] },
+      ],
+    }));
+  });
+
+  const table = container.querySelector('[data-testid="table-pdf-layout-ficticio"]');
+  assert.ok(table);
+  assert.equal(table.querySelectorAll('tbody tr').length, 2);
+  assert.match(table.textContent ?? '', /Campo A/);
+  assert.match(table.textContent ?? '', /Candidata Fictícia/);
+  assert.match(table.textContent ?? '', /000123/);
 });

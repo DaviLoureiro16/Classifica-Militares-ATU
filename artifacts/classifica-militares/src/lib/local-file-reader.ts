@@ -1,7 +1,13 @@
 import type { WorkBook } from 'xlsx';
 import { extractPdfPages, type PdfExtraction } from './pdf-text-extractor';
 
-export type { PdfExtraction, PdfPageText } from './pdf-text-extractor';
+export type {
+  PdfExtraction,
+  PdfPageText,
+  PdfQualityLevel,
+  PdfQualityReport,
+  PdfTextLine,
+} from './pdf-text-extractor';
 
 export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 

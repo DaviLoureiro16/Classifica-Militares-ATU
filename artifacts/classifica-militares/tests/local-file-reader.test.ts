@@ -8,10 +8,11 @@ import {
   reparseCsvFile,
 } from '../src/lib/local-file-reader';
 import {
+  assessPdfQuality,
   extractPdfPages,
   type PdfJsEngine,
 } from '../src/lib/pdf-text-extractor';
-import { makeFictionalPdf } from './fixtures/pdf-bytes';
+import { makeFictionalLayoutPdf, makeFictionalPdf } from './fixtures/pdf-bytes';
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs') as unknown as PdfJsEngine;
 
@@ -132,7 +133,10 @@ test('arquivo vazio e conteúdo incompatível com a extensão são rejeitados', 
 });
 
 test('PDF fictício extrai texto na ordem das páginas', async () => {
-  const bytes = makeFictionalPdf(['FICTICIO PAGINA UM', 'FICTICIO PAGINA DOIS']);
+  const bytes = makeFictionalPdf([
+    'FICTICIO PAGINA UM CANDIDATO DE TESTE',
+    'FICTICIO PAGINA DOIS RESULTADO DE TESTE',
+  ]);
   const messages: string[] = [];
   const result = await extractPdfPages(bytes, pdfjs, undefined, (message) => messages.push(message));
 
@@ -141,7 +145,144 @@ test('PDF fictício extrai texto na ordem das páginas', async () => {
   assert.match(result.pages[0].text, /FICTICIO PAGINA UM/);
   assert.match(result.pages[1].text, /FICTICIO PAGINA DOIS/);
   assert.deepEqual(result.pagesWithoutText, []);
+  assert.equal(result.quality.level, 'indeterminate');
   assert.deepEqual(messages, ['PDF: lendo página 1 de 2', 'PDF: lendo página 2 de 2']);
+});
+
+function makeFictionalTablePage(
+  names: string[],
+  includeHeader = true,
+  shiftedRow = -1,
+  incompleteRow = -1,
+) {
+  const items: Array<{ text: string; x: number; y: number }> = [];
+  if (includeHeader) {
+    items.push(
+      { text: 'Nome', x: 20, y: 175 },
+      { text: 'Inscricao', x: 220, y: 175 },
+      { text: 'Nota', x: 360, y: 175 },
+    );
+  }
+  names.forEach((name, index) => {
+    const y = 150 - index * 20;
+    items.push({ text: name, x: 20, y }, { text: `000${index + 101}`, x: 220, y });
+    if (index !== incompleteRow) items.push({ text: `${8 + index},5`, x: 360, y });
+    if (index === shiftedRow) items.push({ text: 'APTO fictício', x: 470, y });
+  });
+  return items;
+}
+
+test('PDF fictício com tabela alinhada recebe diagnóstico preliminar consistente', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([makeFictionalTablePage([
+      'Ana Candidata Fictícia',
+      'Bruno Candidato Fictício',
+      'Carla Candidata Fictícia',
+    ])]),
+    pdfjs,
+  );
+
+  assert.equal(result.quality.level, 'consistent');
+  assert.equal(result.quality.recognizedHeader, true);
+  assert.equal(result.quality.structuredRows, 3);
+  assert.equal(result.quality.expectedFields, 3);
+  assert.equal(result.quality.fieldCountConsistency, 1);
+  assert.equal(result.quality.incompleteLines, 0);
+  assert.equal(result.quality.possibleShiftedLines, 0);
+  assert.deepEqual(result.pages[0].lines[0].cells, ['Nome', 'Inscricao', 'Nota']);
+});
+
+test('PDF fictício multipágina exclui cabeçalhos repetidos das linhas de dados', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([
+      makeFictionalTablePage(['Ana Candidata Fictícia', 'Bruno Candidato Fictício']),
+      makeFictionalTablePage(['Carla Candidata Fictícia', 'Diego Candidato Fictício']),
+    ]),
+    pdfjs,
+  );
+
+  assert.equal(result.pageCount, 2);
+  assert.equal(result.quality.level, 'consistent');
+  assert.equal(result.quality.structuredRows, 4);
+  assert.equal(result.pages[1].lines[0].cells[0], 'Nome');
+});
+
+test('PDF fictício com campo deslocado recomenda revisão em vez de declarar a tabela confiável', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([makeFictionalTablePage([
+      'Ana Candidata Fictícia',
+      'Bruno Candidato Fictício',
+      'Carla Candidata Fictícia',
+    ], true, 1)]),
+    pdfjs,
+  );
+
+  assert.equal(result.quality.level, 'caution');
+  assert.equal(result.quality.possibleShiftedLines, 1);
+  assert.ok(result.quality.reasons.some((reason) => reason.includes('campos além')));
+});
+
+test('PDF fictício com linha incompleta sinaliza a quantidade de campos divergente', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([makeFictionalTablePage([
+      'Ana Candidata Fictícia',
+      'Bruno Candidato Fictício',
+      'Carla Candidata Fictícia',
+    ], true, -1, 1)]),
+    pdfjs,
+  );
+
+  assert.equal(result.quality.level, 'caution');
+  assert.equal(result.quality.incompleteLines, 1);
+});
+
+test('PDF com páginas legíveis e páginas sem texto alerta sobre cobertura parcial', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([
+      makeFictionalTablePage([
+        'Ana Candidata Fictícia',
+        'Bruno Candidato Fictício',
+        'Carla Candidata Fictícia',
+      ]),
+      [],
+    ]),
+    pdfjs,
+  );
+
+  assert.equal(result.quality.level, 'caution');
+  assert.equal(result.quality.pageTextCoverage, 0.5);
+  assert.deepEqual(result.pagesWithoutText, [2]);
+});
+
+test('PDF fictício com texto em duas colunas preserva a separação, mas sem cabeçalho é indeterminado', async () => {
+  const page = [
+    { text: 'Coluna esquerda', x: 20, y: 170 },
+    { text: 'Coluna direita', x: 360, y: 170 },
+    { text: 'Linha esquerda', x: 20, y: 145 },
+    { text: 'Linha direita', x: 360, y: 145 },
+    { text: 'Outra esquerda', x: 20, y: 120 },
+    { text: 'Outra direita', x: 360, y: 120 },
+  ];
+  const result = await extractPdfPages(makeFictionalLayoutPdf([page]), pdfjs);
+
+  assert.deepEqual(result.pages[0].lines[0].cells, ['Coluna esquerda', 'Coluna direita']);
+  assert.equal(result.quality.level, 'indeterminate');
+  assert.equal(result.quality.recognizedHeader, false);
+});
+
+test('linhas numerosas sem cabeçalho não são classificadas como confiáveis', () => {
+  const pages = [{
+    pageNumber: 1,
+    text: Array.from({ length: 30 }, (_, index) => `Pessoa Fictícia ${index} 000${index} 8,5`).join('\n'),
+    lines: Array.from({ length: 30 }, (_, index) => ({
+      text: `Pessoa Fictícia ${index} 000${index} 8,5`,
+      cells: [`Pessoa Fictícia ${index}`, `000${index}`, '8,5'],
+    })),
+  }];
+
+  const quality = assessPdfQuality(pages, []);
+  assert.equal(quality.level, 'indeterminate');
+  assert.equal(quality.recognizedHeader, false);
 });
 
 test('PDF sintético sem camada de texto é reconhecido sem OCR ou conteúdo inventado', async () => {
@@ -150,6 +291,7 @@ test('PDF sintético sem camada de texto é reconhecido sem OCR ou conteúdo inv
   assert.equal(result.pageCount, 1);
   assert.deepEqual(result.pagesWithoutText, [1]);
   assert.equal(result.pages[0].text, '');
+  assert.equal(result.quality.level, 'insufficient');
 });
 
 test('PDF corrompido com assinatura válida falha explicitamente', async () => {

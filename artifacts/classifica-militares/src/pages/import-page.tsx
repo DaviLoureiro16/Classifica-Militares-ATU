@@ -4,6 +4,7 @@ import {
   FileSpreadsheet, FileText, Info, LoaderCircle, ShieldCheck, Trash2, Upload, X,
 } from 'lucide-react';
 import { AVAILABLE_COMPETITIONS } from '@/domain/competitions/catalog';
+import { PdfLayoutPreview, PdfQualityNotice } from '@/components/pdf-extraction-review';
 import {
   DOCUMENT_TYPE_OPTIONS,
   MAX_FILE_SIZE_BYTES,
@@ -310,6 +311,7 @@ function FilePreview({
               </div>
             )}
           </div>
+          <PdfQualityNotice quality={extracted.quality} documentId={document.id} />
           {extracted.pagesWithoutText.includes(page + 1) ? (
             <div className="import-scan-notice" role="status" data-testid={`status-pdf-page-no-text-${document.id}-${page + 1}`}>
               <AlertTriangle size={17} />
@@ -319,11 +321,20 @@ function FilePreview({
               </div>
             </div>
           ) : (
-            <pre className="import-pdf-text" data-testid={`text-pdf-page-${document.id}-${page + 1}`}>
-              {extracted.pages[page]?.text || 'Esta página não contém texto extraível.'}
-            </pre>
+            <>
+              <PdfLayoutPreview
+                lines={extracted.pages[page]?.lines ?? []}
+                testId={`${document.id}-${page + 1}`}
+              />
+              <details className="import-pdf-raw-details">
+                <summary>Consultar o texto extraído em ordem de leitura</summary>
+                <pre className="import-pdf-text" data-testid={`text-pdf-page-${document.id}-${page + 1}`}>
+                  {extracted.pages[page]?.text || 'Esta página não contém texto extraível.'}
+                </pre>
+              </details>
+            </>
           )}
-          <p className="import-source-note">Origem rastreável: {document.name} · página {page + 1}. Tabelas podem não ser reconstruídas perfeitamente pelo texto extraído.</p>
+          <p className="import-source-note">Origem rastreável: {document.name} · página {page + 1}. Os campos acima são inferidos da posição dos textos no PDF, não de uma planilha original.</p>
         </div>
       ) : extracted.kind === 'spreadsheet' ? (
         <div className="import-document-content">
@@ -475,6 +486,12 @@ export function ImportPageContent() {
           } else if (result.extracted.kind === 'pdf' && result.extracted.pagesWithoutText.length > 0) {
             status = 'review';
             warnings.push(`Páginas sem texto selecionável: ${result.extracted.pagesWithoutText.join(', ')}. Confira se contêm digitalizações.`);
+          } else if (result.extracted.kind === 'pdf' && result.extracted.quality.level !== 'consistent') {
+            status = 'review';
+            warnings.push(
+              result.extracted.quality.reasons[0]
+                ?? 'A estrutura da tabela não pôde ser avaliada com confiança. Confira a pré-visualização.',
+            );
           }
 
           updateDocument(document.id, (current) => ({
