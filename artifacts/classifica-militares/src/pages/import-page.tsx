@@ -9,6 +9,7 @@ import {
   DOCUMENT_TYPE_OPTIONS,
   MAX_FILE_SIZE_BYTES,
   formatCell,
+  normalizeDocumentType,
   readLocalFile,
   reparseCsvFile,
   type CompetitionId,
@@ -177,8 +178,9 @@ function getDuplicateMessage(document: ImportedDocument, documents: ImportedDocu
   return 'Outro arquivo tem o mesmo nome. A verificação de conteúdo ainda não foi concluída; ambos foram mantidos.';
 }
 
-function getDocumentTypeLabel(value: DocumentType): string {
-  return DOCUMENT_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? 'Outro documento';
+function getDocumentTypeLabel(value: string): string {
+  const normalized = normalizeDocumentType(value);
+  return DOCUMENT_TYPE_OPTIONS.find((option) => option.value === normalized)?.label ?? 'Outro documento';
 }
 
 function getDelimiterLabel(delimiter: string): string {
@@ -810,6 +812,8 @@ export function ImportPageContent() {
                 const Icon = getDocumentIcon(document);
                 const duplicateMessage = getDuplicateMessage(document, documents);
                 const detectedCompetition = document.metadata?.competitionCandidates;
+                const documentType = normalizeDocumentType(document.documentType);
+                const documentTypeDescription = DOCUMENT_TYPE_OPTIONS.find((option) => option.value === documentType)?.description;
                 return (
                   <article key={document.id} className={`import-file-card ${selectedDocument?.id === document.id ? 'selected' : ''}`} data-testid={`card-document-${document.id}`}>
                     <div className="import-file-card-top">
@@ -865,7 +869,7 @@ export function ImportPageContent() {
                           Tipo de documento
                           <select
                             className="control"
-                            value={document.documentType}
+                            value={documentType}
                             onChange={(event) => {
                               const value = event.target.value as DocumentType;
                               updateDocument(document.id, (current) => ({ ...current, documentType: value }));
@@ -875,6 +879,9 @@ export function ImportPageContent() {
                             {DOCUMENT_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </select>
                         </label>
+                        <span className="import-auto-suggestion" data-testid={`text-document-type-description-${document.id}`}>
+                          {documentTypeDescription}
+                        </span>
                         <span className="import-auto-suggestion" data-testid={`text-document-type-${document.id}`}>
                           {document.metadata?.documentTypeSuggestion
                             ? `Sugestão automática: ${getDocumentTypeLabel(document.metadata.documentTypeSuggestion)} · confirme ou ajuste.`

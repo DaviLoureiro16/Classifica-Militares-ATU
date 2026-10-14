@@ -1,0 +1,80 @@
+# Ajuste pontual — Campo “Tipo de documento” e correção da leitura de PDFs
+
+Faça alterações no projeto existente do Classifica Militares, preservando sua arquitetura e funcionalidades atuais.
+
+**IMPORTANTE: não crie novas abas, páginas, rotas, funcionalidades ou fluxos de navegação.** A aplicação já possui, durante a importação de documentos, um campo chamado “Tipo de documento”. É exatamente esse campo que deve ser reorganizado.
+
+## 1. Atualizar as opções do campo “Tipo de documento”
+
+Localize o componente existente de importação e altere somente as opções disponíveis no campo “Tipo de documento”, organizando-as com os seguintes nomes:
+
+1. Edital e anexos.
+2. Lista de resultado oficial.
+3. Lista de resultado de uma etapa.
+4. Lista de classificação após uma etapa.
+5. Lista histórica de classificação.
+6. Lista de convocação final e/ou matrícula.
+7. Retificação ou resultado de recurso.
+8. Outro documento relacionado ao concurso.
+
+Adicione descrições curtas às opções, se o componente atual permitir, para ajudar o usuário a identificar corretamente o documento que está importando.
+
+Exemplos:
+- **Edital e anexos:** edital de abertura, instruções e documentos complementares.
+- **Lista de resultado oficial:** resultado ou classificação publicada oficialmente pela organização do concurso.
+- **Lista de resultado de uma etapa:** resultado específico de uma fase, como INSPSAU ou TACF, quando aplicável.
+- **Lista de classificação após uma etapa:** classificação publicada ou calculada após determinada fase.
+- **Lista histórica de classificação:** classificação de uma edição anterior.
+- **Lista de convocação final e/ou matrícula:** convocados, chamadas posteriores e documentos relacionados à matrícula.
+- **Retificação ou resultado de recurso:** documento que corrige ou modifica um resultado anterior.
+- **Outro documento relacionado ao concurso:** documentos que não se enquadram nas categorias anteriores.
+
+Preserve o estilo visual, o componente e o fluxo de seleção já existentes. Não crie uma nova tela para isso.
+
+## 2. Preservar a compatibilidade
+
+Verifique como os valores selecionados atualmente são armazenados e utilizados pelo restante do código.
+
+- Atualize as opções e os respectivos valores internos de forma consistente.
+- Adapte as referências existentes que dependam das categorias antigas.
+- Preserve as funcionalidades atuais de importação e processamento.
+- Não apague documentos importados anteriormente.
+- Evite quebrar registros existentes que utilizem categorias antigas; faça a compatibilidade necessária.
+- Não altere o seletor de concurso, edição, arquivo ou qualquer outro campo que não precise ser modificado.
+
+## 3. Corrigir a extração e a visualização dos PDFs
+
+Além da atualização do campo, corrija o problema já identificado na importação: o sistema está agrupando inscrição, classificação e MF em uma única coluna, deslocando os demais dados.
+
+Cada informação deve ocupar sua própria coluna, incluindo:
+- Número de inscrição.
+- Nome do candidato.
+- Classificação.
+- MF.
+- Notas e demais campos existentes no documento.
+
+Utilize a estrutura espacial do PDF e a lógica de extração existente para identificar corretamente os campos. Não resolva o problema apenas com mudanças de aparência ou divisão indiscriminada por espaços.
+
+Considere também que registros com quantidade diferente de campos podem corresponder a candidatos excluídos do concurso. Preserve esses registros e não os classifique automaticamente como erros.
+
+Garanta que a prévia, os dados armazenados e as listas já existentes utilizem os campos corretamente separados.
+
+## 4. Limites da alteração
+
+Não crie:
+- Novas abas ou páginas.
+- Novas rotas.
+- Novos módulos de navegação.
+- Novos sistemas de projeção ou análise.
+- Novas funcionalidades de gerenciamento de documentos.
+- Um segundo campo para substituir “Tipo de documento”.
+
+Faça apenas a atualização das opções do campo existente e as correções necessárias à extração e à visualização dos PDFs, incluindo os ajustes indispensáveis nas funções atuais que dependem desses dados.
+
+## 5. Validação
+
+Execute os testes existentes, acrescente testes para as novas categorias e para a separação dos campos e verifique a compilação de produção.
+
+Ao terminar, informe quais arquivos foram alterados, quais opções foram atualizadas e quais testes passaram.
+
+**Critério de conclusão:** a tela de importação continua sendo a mesma, com o mesmo campo “Tipo de documento”, agora com as oito opções organizadas, enquanto a leitura dos PDFs mantém inscrição, nome, classificação, MF e demais informações em colunas independentes.

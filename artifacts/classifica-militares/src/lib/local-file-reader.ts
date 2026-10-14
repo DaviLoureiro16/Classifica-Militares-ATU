@@ -12,16 +12,54 @@ export type {
 export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
 export const DOCUMENT_TYPE_OPTIONS = [
-  { value: 'edital', label: 'Edital ou documento com regras do concurso' },
-  { value: 'resultado-inicial', label: 'Lista de resultado inicial' },
-  { value: 'resultado-etapa', label: 'Lista de resultado de etapa' },
-  { value: 'recurso-retificado', label: 'Resultado de recurso ou resultado retificado' },
-  { value: 'convocacao-matricula', label: 'Lista de convocação ou matrícula' },
-  { value: 'historico-classificacao', label: 'Lista histórica de classificação' },
-  { value: 'outro', label: 'Outro documento' },
+  {
+    value: 'edital',
+    label: 'Edital e anexos',
+    description: 'Edital de abertura, instruções e documentos complementares.',
+  },
+  {
+    value: 'resultado-oficial',
+    label: 'Lista de resultado oficial',
+    description: 'Resultado ou classificação publicada oficialmente pela organização do concurso.',
+  },
+  {
+    value: 'resultado-etapa',
+    label: 'Lista de resultado de uma etapa',
+    description: 'Resultado específico de uma fase, como INSPSAU ou TACF, quando aplicável.',
+  },
+  {
+    value: 'classificacao-apos-etapa',
+    label: 'Lista de classificação após uma etapa',
+    description: 'Classificação publicada ou calculada após determinada fase.',
+  },
+  {
+    value: 'historico-classificacao',
+    label: 'Lista histórica de classificação',
+    description: 'Classificação referente a uma edição anterior do concurso.',
+  },
+  {
+    value: 'convocacao-matricula',
+    label: 'Lista de convocação final e/ou matrícula',
+    description: 'Convocados, chamadas posteriores e documentos relacionados à matrícula.',
+  },
+  {
+    value: 'recurso-retificado',
+    label: 'Retificação ou resultado de recurso',
+    description: 'Documento que corrige ou modifica um resultado anterior.',
+  },
+  {
+    value: 'outro',
+    label: 'Outro documento relacionado ao concurso',
+    description: 'Documento do concurso que não se enquadra nas categorias anteriores.',
+  },
 ] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPE_OPTIONS)[number]['value'];
+
+export function normalizeDocumentType(value: string): DocumentType {
+  if (value === 'resultado-inicial') return 'resultado-oficial';
+  return DOCUMENT_TYPE_OPTIONS.find((option) => option.value === value)?.value ?? 'outro';
+}
 export type CompetitionId = 'EPCAR' | 'AFA';
 export type CsvDelimiterChoice = 'auto' | ';' | ',' | '\t' | '|';
 export type CellValue = string | number | boolean | Date | null;
@@ -179,10 +217,14 @@ function detectMetadata(fileName: string, sampleText: string): MetadataHints {
   ) {
     documentTypeSuggestion = 'resultado-etapa';
   } else if (
-    /(resultado|classificacao)/i.test(typeSource)
-    && /(resultado inicial|classificacao geral|lista de classificados|resultado final)/i.test(typeSource)
+    /(?:classificacao|resultado).{0,40}(?:apos|pos).{0,25}(?:etapa|fase|inspsau|tacf|eap)|(?:apos|pos).{0,25}(?:etapa|fase|inspsau|tacf|eap).{0,40}classificacao/i.test(typeSource)
   ) {
-    documentTypeSuggestion = 'resultado-inicial';
+    documentTypeSuggestion = 'classificacao-apos-etapa';
+  } else if (
+    /(resultado|classificacao)/i.test(typeSource)
+    && /(resultado inicial|resultado oficial|classificacao geral|lista de classificados|resultado final)/i.test(typeSource)
+  ) {
+    documentTypeSuggestion = 'resultado-oficial';
   }
 
   return {

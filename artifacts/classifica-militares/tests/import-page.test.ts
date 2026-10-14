@@ -165,6 +165,12 @@ test('a importação múltipla mantém arquivos de mesmo nome com conteúdos dif
 
   await waitFor(() => cards().length === 2 && cards().every((card) => card.textContent?.includes('Processado')), 'both fictional CSV files to process');
   assert.ok(cards().every((card) => card.textContent?.includes('mesmo nome, mas o conteúdo é diferente')));
+  const documentTypeSelect = cards()[0].querySelector<HTMLSelectElement>('select[data-testid^="select-document-type-"]');
+  assert.ok(documentTypeSelect);
+  assert.equal(documentTypeSelect.options.length, 8);
+  assert.equal(documentTypeSelect.options[0].textContent, 'Edital e anexos');
+  const typeDescription = cards()[0].querySelector('[data-testid^="text-document-type-description-"]');
+  assert.match(typeDescription?.textContent ?? '', /não se enquadra nas categorias anteriores/i);
 
   const removeFirst = container.querySelector<HTMLButtonElement>(`button[aria-label="Remover ${name}"]`);
   assert.ok(removeFirst);
@@ -261,20 +267,31 @@ test('a prévia apresenta recomendação para revisão sem oferecer conversão n
 
   const notice = container.querySelector('[data-testid="pdf-quality-ficticio"]');
   assert.ok(notice);
-  assert.match(notice.textContent ?? '', /Algumas linhas podem ter colunas desalinhadas/i);
+  assert.match(notice.textContent ?? '', /A quantidade de campos varia entre algumas linhas/i);
   assert.match(notice.textContent ?? '', /planilha original/i);
-  assert.match(notice.textContent ?? '', /não substituem a conferência visual/i);
+  assert.match(notice.textContent ?? '', /não são removidas nem marcadas automaticamente como erro/i);
   assert.equal(container.querySelector('[data-testid*="converter"]'), null);
 });
 
-test('a prévia tabular identifica campos e mantém o número da linha de origem', async () => {
+test('a prévia usa cabeçalhos extraídos e mantém candidatos com quantidades diferentes de campos', async () => {
   assert.ok(PdfLayoutPreview);
   await React.act(async () => {
     root?.render(React.createElement(PdfLayoutPreview, {
       testId: 'ficticio',
       lines: [
-        { text: 'Nome  Inscrição', cells: ['Nome', 'Inscricao'] },
-        { text: 'Candidata Fictícia  000123', cells: ['Candidata Fictícia', '000123'] },
+        {
+          text: 'Nome  Inscricao  Classificacao  MF  Nota',
+          cells: ['Nome', 'Inscricao', 'Classificacao', 'MF', 'Nota'],
+          isHeader: true,
+        },
+        {
+          text: 'Candidata Ficticia  000123  01  7,5  8,5',
+          cells: ['Candidata Ficticia', '000123', '01', '7,5', '8,5'],
+        },
+        {
+          text: 'Candidato Excluido  000124  EXCLUIDO',
+          cells: ['Candidato Excluido', '000124', 'EXCLUIDO'],
+        },
       ],
     }));
   });
@@ -282,7 +299,9 @@ test('a prévia tabular identifica campos e mantém o número da linha de origem
   const table = container.querySelector('[data-testid="table-pdf-layout-ficticio"]');
   assert.ok(table);
   assert.equal(table.querySelectorAll('tbody tr').length, 2);
-  assert.match(table.textContent ?? '', /Campo A/);
-  assert.match(table.textContent ?? '', /Candidata Fictícia/);
+  assert.match(table.querySelector('thead')?.textContent ?? '', /Nome.*Inscricao.*Classificacao.*MF.*Nota/);
+  assert.match(table.textContent ?? '', /Candidata Ficticia/);
   assert.match(table.textContent ?? '', /000123/);
+  assert.match(table.textContent ?? '', /Candidato Excluido/);
+  assert.match(table.textContent ?? '', /EXCLUIDO/);
 });

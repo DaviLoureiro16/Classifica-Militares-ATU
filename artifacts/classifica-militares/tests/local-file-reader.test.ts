@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import * as XLSX from 'xlsx';
 import {
+  DOCUMENT_TYPE_OPTIONS,
   MAX_FILE_SIZE_BYTES,
+  normalizeDocumentType,
   readLocalFile,
   reparseCsvFile,
 } from '../src/lib/local-file-reader';
@@ -15,6 +17,40 @@ import {
 import { makeFictionalLayoutPdf, makeFictionalPdf } from './fixtures/pdf-bytes';
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs') as unknown as PdfJsEngine;
+
+test('as oito categorias de documento mantêm a ordem solicitada e convertem o valor legado', () => {
+  assert.deepEqual(DOCUMENT_TYPE_OPTIONS.map((option) => option.label), [
+    'Edital e anexos',
+    'Lista de resultado oficial',
+    'Lista de resultado de uma etapa',
+    'Lista de classificação após uma etapa',
+    'Lista histórica de classificação',
+    'Lista de convocação final e/ou matrícula',
+    'Retificação ou resultado de recurso',
+    'Outro documento relacionado ao concurso',
+  ]);
+  assert.ok(DOCUMENT_TYPE_OPTIONS.every((option) => option.description.length > 0));
+  assert.equal(normalizeDocumentType('resultado-inicial'), 'resultado-oficial');
+  assert.equal(normalizeDocumentType('historico-classificacao'), 'historico-classificacao');
+  assert.equal(normalizeDocumentType('valor-desconhecido'), 'outro');
+});
+
+test('as sugestões de tipo de documento usam as novas categorias', async () => {
+  const cases: Array<[string, string, string]> = [
+    ['ficticio-edital.csv', 'Edital de abertura e documentos anexos', 'edital'],
+    ['ficticio-resultado.csv', 'Resultado oficial e classificação geral', 'resultado-oficial'],
+    ['ficticio-etapa.csv', 'Resultado da etapa TACF: candidato apto', 'resultado-etapa'],
+    ['ficticio-pos-etapa.csv', 'Classificação após a etapa TACF', 'classificacao-apos-etapa'],
+    ['ficticio-historico.csv', 'Histórico de classificação da edição anterior', 'historico-classificacao'],
+    ['ficticio-convocacao.csv', 'Convocação final para matrícula', 'convocacao-matricula'],
+    ['ficticio-retificacao.csv', 'Retificação do resultado após recurso', 'recurso-retificado'],
+  ];
+
+  for (const [name, text, expected] of cases) {
+    const result = await readLocalFile(makeFile(`Documento fictício;${text}`, name));
+    assert.equal(result.metadata.documentTypeSuggestion, expected, name);
+  }
+});
 
 function makeFile(bytes: string | Uint8Array, name: string, type = ''): File {
   if (typeof bytes === 'string') return new File([bytes], name, { type });
@@ -190,6 +226,37 @@ test('PDF fictício com tabela alinhada recebe diagnóstico preliminar consisten
   assert.equal(result.quality.incompleteLines, 0);
   assert.equal(result.quality.possibleShiftedLines, 0);
   assert.deepEqual(result.pages[0].lines[0].cells, ['Nome', 'Inscricao', 'Nota']);
+});
+
+test('PDF compacto usa alinhamento do cabeçalho para separar inscrição, classificação, MF e notas', async () => {
+  const items: Array<{ text: string; x: number; y: number }> = [
+    { text: 'Nome', x: 20, y: 175 },
+    { text: 'Inscricao', x: 50, y: 175 },
+    { text: 'Classificacao', x: 94, y: 175 },
+    { text: 'MF', x: 152, y: 175 },
+    { text: 'Nota', x: 172, y: 175 },
+  ];
+  const rows = [
+    { y: 150, name: 'Ana Candidata Ficticia', fields: ['000101', '01', '7,5000', '8,2500'] },
+    { y: 130, name: 'Bruno Candidato Ficticio', fields: ['000102', '02', '8,2500', '8,7500'] },
+    { y: 110, name: 'Carla Candidata Ficticia', fields: ['000103', '03', '9,0000', '9,2500'] },
+    { y: 90, name: 'Diego Candidato Excluido', fields: ['000104', 'EXCLUIDO'] },
+  ];
+  for (const row of rows) {
+    items.push({ text: row.name, x: 20, y: row.y });
+    const starts = [50, 94, 152, 172];
+    row.fields.forEach((text, index) => items.push({ text, x: starts[index], y: row.y }));
+  }
+
+  const result = await extractPdfPages(makeFictionalLayoutPdf([items]), pdfjs);
+  const lines = result.pages[0].lines;
+
+  assert.deepEqual(lines[0].cells, ['Nome', 'Inscricao', 'Classificacao', 'MF', 'Nota']);
+  assert.deepEqual(lines[1].cells, ['Ana Candidata Ficticia', '000101', '01', '7,5000', '8,2500']);
+  assert.deepEqual(lines[2].cells, ['Bruno Candidato Ficticio', '000102', '02', '8,2500', '8,7500']);
+  assert.deepEqual(lines[4].cells, ['Diego Candidato Excluido', '000104', 'EXCLUIDO']);
+  assert.equal(lines.length, 5);
+  assert.equal(result.quality.incompleteLines, 1);
 });
 
 test('PDF fictício multipágina exclui cabeçalhos repetidos das linhas de dados', async () => {
