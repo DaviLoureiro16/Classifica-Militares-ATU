@@ -11,7 +11,28 @@ export interface PdfTextLine {
   isStructured?: boolean;
   needsReview?: boolean;
   unmappedFragments?: string[];
+  kind?: 'metadata' | 'table-header' | 'candidate' | 'unmapped';
+  record?: MilitaryCandidateRecord;
 }
+
+export const MILITARY_RESULT_COLUMNS = [
+  { key: 'inha', label: 'INHA' },
+  { key: 'nome', label: 'NOME' },
+  { key: 'inscricao', label: 'INSCRIÇÃO' },
+  { key: 'clas', label: 'CLAS' },
+  { key: 'mf', label: 'MF' },
+  { key: 'port', label: 'PORT' },
+  { key: 'mat', label: 'MAT' },
+  { key: 'ing', label: 'ING' },
+  { key: 'red', label: 'RED' },
+  { key: 'dtNasc', label: 'DT_NASC' },
+  { key: 'ac', label: 'AC' },
+  { key: 'rv', label: 'RV' },
+  { key: 'ci', label: 'CI' },
+] as const;
+
+export type MilitaryCandidateColumnKey = typeof MILITARY_RESULT_COLUMNS[number]['key'];
+export type MilitaryCandidateRecord = Record<MilitaryCandidateColumnKey, string>;
 
 export type PdfQualityLevel = 'consistent' | 'caution' | 'insufficient' | 'indeterminate';
 
@@ -75,86 +96,50 @@ function normalizeText(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function getHeaderCategories(text: string): Set<string> {
-  const value = normalizeText(text);
-  const categories = new Set<string>();
-  if (/\b(?:nome|candidato|candidata|inscrito|participante|inha)\w*\b/.test(value)) categories.add('identity');
-  if (/\b(?:inscri|matricul|identific|codig|dt_nasc)\w*\b/.test(value)) categories.add('identifier');
-  if (/\b(?:nota|media|pontos|pontuac|mf|gp|gm|gi|gr|port|mat|ing|red)\w*\b/.test(value)) categories.add('score');
-  if (/\b(?:classific|clas|posic|situac|resultado|ordem|convocado|ci)\w*\b/.test(value)) categories.add('result');
-  return categories;
-}
-
 function isRecognizedHeader(line: PdfTextLine): boolean {
-  return line.isHeader ?? getHeaderCategories(line.text).size >= 2;
+  return line.kind === 'table-header' || line.isHeader === true;
 }
 
-function isHeaderFieldLabel(text: string): boolean {
-  return /\b(?:inha|nome|candidat\w*|inscri\w*|matricul\w*|identific\w*|codig\w*|classific\w*|clas|mf|port|mat|ing|red|dt_nasc|ac|rv|ci|x|convocad\w*|posic\w*|situac\w*|resultad\w*|ordem|gp|gm|gi|gr|media|nota|pontos|pontuac\w*|disciplina|prova|portugues|matematica|fisica|ingles|fase|etapa|status)\b/i
-    .test(normalizeText(text));
+interface SchemaHeaderMatch {
+  index: number;
+  start: number;
+  end: number;
+  label: string;
 }
 
-function extractHeaderLabels(text: string): string[] {
+const SCHEMA_ALIASES = MILITARY_RESULT_COLUMNS.map((column, index) => {
+  const aliases: string[][] = [
+    ['inha'],
+    ['nome'],
+    ['inscricao'],
+    ['classificacao', 'clas'],
+    ['mf'],
+    ['portugues', 'port'],
+    ['matematica', 'mat'],
+    ['ingles', 'ing'],
+    ['redacao', 'red'],
+    ['data de nascimento', 'datanascimento', 'dt_nasc'],
+    ['ac'],
+    ['rv'],
+    ['ci'],
+  ];
+  return { index, key: column.key, aliases: aliases[index] };
+}).flatMap(({ index, aliases }) => aliases.map((alias) => ({ index, alias })))
+  .sort((left, right) => right.alias.length - left.alias.length);
+
+function extractSchemaHeaderMatches(text: string): SchemaHeaderMatch[] {
   const normalized = normalizeText(text);
-  const labels = [
-    'nome do candidato',
-    'nome completo',
-    'data de nascimento',
-    'dt_nasc',
-    'classificacao',
-    'identificacao',
-    'participante',
-    'candidata',
-    'candidato',
-    'inscricao',
-    'matricula',
-    'situacao',
-    'resultado',
-    'pontuacao',
-    'convocado',
-    'portugues',
-    'matematica',
-    'disciplina',
-    'posicao',
-    'pontos',
-    'media',
-    'inha',
-    'nome',
-    'mf',
-    'port',
-    'mat',
-    'ing',
-    'red',
-    'ac',
-    'rv',
-    'ci',
-    'x',
-    'clas',
-    'gp',
-    'gm',
-    'gi',
-    'gr',
-    'nota',
-    'ordem',
-    'codigo',
-    'prova',
-    'fisica',
-    'ingles',
-    'etapa',
-    'fase',
-    'status',
-  ].sort((left, right) => right.length - left.length);
-  const matches: Array<{ start: number; end: number; label: string }> = [];
+  const matches: SchemaHeaderMatch[] = [];
   let previousMatchEnd = -1;
 
   for (let index = 0; index < normalized.length;) {
-    const match = labels.find((label) => {
-      if (!normalized.startsWith(label, index)) return false;
+    const match = SCHEMA_ALIASES.find(({ alias }) => {
+      if (!normalized.startsWith(alias, index)) return false;
       const previousCharacter = normalized[index - 1];
-      const nextCharacter = normalized[index + label.length];
+      const nextCharacter = normalized[index + alias.length];
       const beginsAtBoundary = index === 0 || index === previousMatchEnd || !/[a-z0-9]/.test(previousCharacter ?? '');
       const endsAtBoundary = !/[a-z0-9]/.test(nextCharacter ?? '');
-      const startsNextLabel = labels.some((nextLabel) => normalized.startsWith(nextLabel, index + label.length));
+      const startsNextLabel = SCHEMA_ALIASES.some(({ alias: nextAlias }) => normalized.startsWith(nextAlias, index + alias.length));
       return beginsAtBoundary && (endsAtBoundary || startsNextLabel);
     });
     if (!match) {
@@ -162,62 +147,103 @@ function extractHeaderLabels(text: string): string[] {
       continue;
     }
 
-    matches.push({ start: index, end: index + match.length, label: text.slice(index, index + match.length) });
-    index += match.length;
+    matches.push({
+      index: match.index,
+      start: index,
+      end: index + match.alias.length,
+      label: text.slice(index, index + match.alias.length),
+    });
+    index += match.alias.length;
     previousMatchEnd = index;
   }
-  return matches.map((match) => match.label);
+  return matches;
 }
 
-interface ColumnAnchor {
-  x: number;
-  fontSize: number;
-  sampleCount: number;
+interface PdfTableLayout {
+  positions: Array<number | null>;
+  labels: string[];
+  complete: boolean;
+  ordered: boolean;
 }
 
-function mergeColumnAnchors(candidates: Array<{ x: number; fontSize: number }>): ColumnAnchor[] {
-  const anchors: ColumnAnchor[] = [];
-  for (const candidate of [...candidates].sort((left, right) => left.x - right.x)) {
-    const last = anchors.at(-1);
-    const tolerance = last
-      ? Math.max(1.5, Math.min(3.5, Math.max(last.fontSize, candidate.fontSize) * 0.25))
-      : 0;
-    if (last && Math.abs(last.x - candidate.x) <= tolerance) {
-      last.x = (last.x * last.sampleCount + candidate.x) / (last.sampleCount + 1);
-      last.fontSize = Math.max(last.fontSize, candidate.fontSize);
-      last.sampleCount += 1;
-    } else {
-      anchors.push({ ...candidate, sampleCount: 1 });
-    }
+function matchesForGroup(group: { items: PositionedTextItem[] }): Array<SchemaHeaderMatch & { x: number }> {
+  return group.items.flatMap((item) => {
+    const matches = extractSchemaHeaderMatches(item.text);
+    return matches.map((match) => {
+      const characters = Math.max(1, item.text.length);
+      const measuredWidth = item.width > 0 ? item.width : item.fontSize * characters * 0.5;
+      const estimatedX = matches.length > 1
+        ? item.x + measuredWidth * (match.start / characters)
+        : item.x;
+      return { ...match, x: estimatedX };
+    });
+  });
+}
+
+function isCandidateHeader(group: { items: PositionedTextItem[] }): boolean {
+  const indices = new Set(matchesForGroup(group).map((match) => match.index));
+  return indices.has(1) && indices.has(2) && indices.has(3);
+}
+
+function makeTableLayout(
+  group: { items: PositionedTextItem[] },
+  previous?: PdfTableLayout,
+): PdfTableLayout {
+  const positions = previous ? [...previous.positions] : Array.from({ length: MILITARY_RESULT_COLUMNS.length }, () => null);
+  const labels = previous ? [...previous.labels] : MILITARY_RESULT_COLUMNS.map((column) => column.label);
+  const matches = matchesForGroup(group);
+  const seen = new Set<number>();
+
+  for (const match of matches) {
+    if (seen.has(match.index)) continue;
+    positions[match.index] = match.x;
+    labels[match.index] = match.label;
+    seen.add(match.index);
   }
-  return anchors;
+  const knownPositions = positions.filter((position): position is number => position !== null);
+  const ordered = knownPositions.every((position, index) => index === 0 || position > knownPositions[index - 1]);
+  return {
+    positions,
+    labels,
+    complete: positions.every((position) => position !== null),
+    ordered,
+  };
 }
 
-function findColumnAssignment(
+function assignToColumn(
   x: number,
   fontSize: number,
-  anchors: ColumnAnchor[],
-): { index: number; aligned: boolean } | null {
-  if (anchors.length === 0) return null;
-  const tolerance = Math.max(2.5, Math.min(6, fontSize * 0.4));
-  let closestIndex = -1;
-  let closestDistance = Number.POSITIVE_INFINITY;
-  anchors.forEach((anchor, index) => {
-    const distance = Math.abs(anchor.x - x);
-    if (distance < closestDistance) {
-      closestIndex = index;
-      closestDistance = distance;
-    }
-  });
-  if (closestDistance <= tolerance) return { index: closestIndex, aligned: true };
-  if (x < anchors[0].x || x > anchors.at(-1)!.x) return null;
+  layout: PdfTableLayout,
+): number | null {
+  if (!layout.ordered) return null;
+  const known = layout.positions
+    .map((position, index) => position === null ? null : { position, index })
+    .filter((entry): entry is { position: number; index: number } => entry !== null);
+  if (known.length === 0) return null;
 
-  let precedingIndex = 0;
-  for (let index = 1; index < anchors.length; index += 1) {
-    if (anchors[index].x > x) break;
-    precedingIndex = index;
+  if (layout.complete) {
+    const firstGap = known[1].position - known[0].position;
+    const lastGap = known.at(-1)!.position - known.at(-2)!.position;
+    if (x < known[0].position - Math.max(fontSize, firstGap * 0.4)
+      || x > known.at(-1)!.position + Math.max(fontSize * 1.5, lastGap * 0.65)) {
+      return null;
+    }
+    for (let index = 0; index < known.length - 1; index += 1) {
+      const boundary = (known[index].position + known[index + 1].position) / 2;
+      if (x < boundary) return known[index].index;
+    }
+    return known.at(-1)!.index;
   }
-  return { index: precedingIndex, aligned: false };
+
+  let closest = known[0];
+  for (const entry of known.slice(1)) {
+    if (Math.abs(entry.position - x) < Math.abs(closest.position - x)) closest = entry;
+  }
+  const distances = known.slice(1).map((entry, index) => entry.position - known[index].position);
+  const typicalGap = distances.length ? distances.sort((left, right) => left - right)[Math.floor(distances.length / 2)] : fontSize * 2;
+  return Math.abs(closest.position - x) <= Math.max(fontSize, Math.min(10, typicalGap * 0.28))
+    ? closest.index
+    : null;
 }
 
 function makePdfLines(items: unknown[]): PdfTextLine[] {

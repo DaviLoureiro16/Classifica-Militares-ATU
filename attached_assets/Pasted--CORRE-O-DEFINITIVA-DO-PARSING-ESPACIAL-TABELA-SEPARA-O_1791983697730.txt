@@ -1,0 +1,213 @@
+# CORREÇÃO DEFINITIVA DO PARSING ESPACIAL — TABELA “SEPARAÇÃO ESPACIAL PRELIMINAR”
+
+O ajuste anterior não resolveu o problema. A tabela continua estruturalmente incorreta: o sistema identifica até 22 campos por posição, exibe vários cabeçalhos como “Cabeçalho não identificado” e não alinha corretamente os valores sob as colunas correspondentes.
+
+**Não tente corrigir isso apenas com CSS, larguras de coluna, renomeação de cabeçalhos ou deslocamento visual dos valores. O erro está na reconstrução da estrutura tabular do PDF. Corrija a lógica de extração, o mapeamento dos campos e a renderização da tabela.**
+
+Antes de implementar, inspecione o código atual da importação, o extrator PDF.js, a função de agrupamento espacial, o componente “Separação espacial preliminar” e os testes existentes. Reutilize a implementação atual e faça uma correção direcionada.
+
+## 1. Entenda a estrutura do PDF antes de extrair os registros
+
+O documento de referência é um resultado do EA CPCAR 2026. O texto extraído apresenta o título:
+
+“Resultado Final nas Provas Escritas - Candidatos COM Aproveitamento e Convocados para Concentração Intermediária”.
+
+O documento também contém informações institucionais, como “DIRETORIA DE ENSINO”, “SISTEMA INTEGRADO DE GESTÃO E CONTROLE”, “EA CPCAR 2026”, “Exame de Admissão ao Curso Preparatório de Cadetes do Ar 2026”, “AMPLA CONCORRÊNCIA” e “Concentração Intermediária”.
+
+**Esses textos são títulos, metadados ou informações de seção, não cabeçalhos das colunas de candidatos.**
+
+O cabeçalho real da tabela, conforme o documento, contém os seguintes campos:
+
+| Ordem | Cabeçalho |
+|---:|---|
+| 1 | INHA |
+| 2 | NOME |
+| 3 | INSCRIÇÃO |
+| 4 | CLAS |
+| 5 | MF |
+| 6 | PORT |
+| 7 | MAT |
+| 8 | ING |
+| 9 | RED |
+| 10 | DT_NASC |
+| 11 | AC |
+| 12 | RV |
+| 13 | CI |
+
+Confirme a grafia exata do primeiro campo e os nomes dos cabeçalhos diretamente no PDF original. A tabela acima representa o mapeamento esperado a partir do documento e da estrutura já identificada; não crie campos adicionais só porque existem fragmentos de texto em outras posições horizontais.
+
+Os valores de status, como “X” e “Convocado”, devem ser associados às colunas correspondentes de acordo com os cabeçalhos e a geometria real do PDF. Se o documento tiver colunas adicionais de status, identifique-as no original e inclua-as explicitamente no mapeamento. Não as invente.
+
+## 2. Pare de gerar cabeçalhos a partir de posições arbitrárias
+
+O comportamento atual — até 22 campos identificados por posição e vários cabeçalhos genéricos — demonstra que o sistema está usando posições horizontais ou agrupamentos de texto como se cada posição fosse uma coluna real.
+
+Corrija esse comportamento.
+
+**A quantidade de segmentos de texto, coordenadas ou posições detectadas não é igual à quantidade de colunas da tabela.**
+
+Uma linha pode conter:
+- Um nome composto por vários segmentos de texto.
+- Campos vazios que não geram segmentos.
+- Valores separados por distâncias diferentes.
+- Indicadores “X”.
+- Uma palavra como “Convocado”.
+- Fragmentos de texto que precisam ser unidos dentro do mesmo campo.
+
+Esses casos não devem criar novas colunas.
+
+Não gere automaticamente cabeçalhos “Campo 1”, “Campo 2” ou “Cabeçalho não identificado” para cada posição detectada. Primeiro identifique os cabeçalhos reais da tabela e depois associe os valores a eles.
+
+Quando um cabeçalho não puder ser identificado, não o substitua por uma coluna arbitrária. Registre a incerteza e sinalize para revisão.
+
+## 3. Use o cabeçalho real para determinar os limites das colunas
+
+Utilize os segmentos de texto e suas coordenadas fornecidos pelo PDF.js, mas implemente uma reconstrução tabular orientada pelos cabeçalhos.
+
+Fluxo esperado:
+
+1. Extraia os segmentos de texto com suas coordenadas X/Y e informações de página.
+2. Identifique a região da página que contém a tabela de candidatos.
+3. Localize a linha dos cabeçalhos reais.
+4. Identifique a posição horizontal de cada cabeçalho.
+5. Estabeleça limites de coluna coerentes com a geometria da tabela, usando os cabeçalhos e os limites visuais disponíveis.
+6. Agrupe os segmentos de texto das linhas seguintes em registros de candidatos.
+7. Associe cada valor à coluna correspondente usando os limites identificados.
+8. Trate cabeçalhos repetidos nas páginas seguintes sem criar novas colunas.
+9. Valide o resultado com os tipos de dados esperados e com o documento original.
+
+Não calcule os limites de cada linha isoladamente com base apenas nos espaços entre os valores. Isso produz uma estrutura diferente em cada linha e causa o deslocamento dos campos.
+
+Os limites das colunas devem ser consistentes dentro da mesma tabela e podem ser recalibrados apenas quando uma mudança real de estrutura for detectada no documento.
+
+Se o PDF tiver uma tabela visualmente organizada, utilize também as linhas divisórias ou outros elementos gráficos disponíveis para confirmar os limites, quando aplicável.
+
+## 4. Corrija especificamente os campos que estão sendo agrupados
+
+Os seguintes campos devem ser tratados separadamente:
+
+- `INSCRIÇÃO` e `CLAS`.
+- `MF`, `PORT`, `MAT`, `ING` e `RED`.
+- `DT_NASC`, `AC`, `RV` e `CI`.
+- Cada campo de status, incluindo os indicadores `X` e o texto `Convocado`, conforme os cabeçalhos reais.
+
+Não agrupe `INSCRIÇÃO` com `CLAS` porque ambos contêm números.
+
+Não agrupe `DT_NASC`, `AC` e `RV` porque aparecem próximos horizontalmente.
+
+Não desloque os campos de notas ou status para preencher espaços vazios.
+
+A atribuição deve considerar a posição horizontal em relação aos limites das colunas e a estrutura da tabela. A validação pelo formato do dado pode ajudar, mas não deve substituir a geometria do documento.
+
+### Exemplos de validação semântica
+
+- `INSCRIÇÃO`: identificador numérico; preserve-o como texto para não perder zeros à esquerda.
+- `CLAS`: posição de classificação, distinta do número de inscrição.
+- `MF`, `PORT`, `MAT`, `ING` e `RED`: valores numéricos de notas, conforme o formato original.
+- `DT_NASC`: data, por exemplo `19/06/2008`.
+- `AC`, `RV` e `CI`: campos independentes, conforme seus valores e significados no documento.
+- `X`: indicador que deve permanecer na coluna em que aparece no documento.
+- `Convocado`: situação textual, não uma nota ou uma classificação.
+
+Não use somente expressões regulares para preencher os campos, porque isso pode colocar uma data ou um número na coluna errada quando houver valores ausentes ou formatos diferentes.
+
+## 5. Separe a identificação dos títulos da identificação do cabeçalho tabular
+
+As primeiras linhas extraídas contêm títulos e informações gerais do documento. Elas não devem ser interpretadas como registros de candidatos nem usadas como cabeçalho das colunas.
+
+Trate separadamente:
+- Título do documento.
+- Identificação institucional.
+- Concurso e edição.
+- Modalidade ou grupo, como “AMPLA CONCORRÊNCIA”.
+- Etapa ou seção, como “Concentração Intermediária”.
+- Data da etapa, quando presente.
+- Cabeçalhos da tabela.
+- Registros de candidatos.
+
+A prévia espacial deve preservar os textos institucionais para consulta, mas não pode utilizá-los para criar colunas de candidatos.
+
+As linhas que não forem registros de candidatos devem ser identificadas como metadados, títulos, cabeçalhos ou observações, e não inseridas indiscriminadamente na tabela principal.
+
+## 6. Renderize uma tabela estruturada, não uma grade de coordenadas
+
+A “Separação espacial preliminar” deve exibir uma tabela de dados com cabeçalhos identificados, e não uma grade baseada diretamente em todas as posições X detectadas.
+
+Para cada registro, construa um objeto estruturado com chaves explícitas, por exemplo:
+
+- `inha`
+- `nome`
+- `inscricao`
+- `clas`
+- `mf`
+- `port`
+- `mat`
+- `ing`
+- `red`
+- `dtNasc`
+- `ac`
+- `rv`
+- `ci`
+- Campos de status efetivamente identificados no PDF.
+
+Os nomes internos são exemplos de chaves de dados. Os rótulos visíveis devem corresponder aos cabeçalhos originais.
+
+Todos os registros devem utilizar a mesma estrutura lógica. Se determinado campo estiver ausente, deixe-o vazio ou marque-o para revisão, sem mover os valores seguintes.
+
+Mantenha a funcionalidade de conferência. Se a extração ainda tiver incertezas, sinalize-as sem destruir o alinhamento dos campos que foram identificados corretamente.
+
+## 7. Use os registros apresentados como casos concretos de validação
+
+Os dados extraídos a seguir devem ser usados como referência de testes, sem assumir que a posição dos fragmentos na saída atual esteja correta.
+
+Exemplos de registros:
+- ADAM QUINTANILHA DA SILVA — inscrição `2030008`, classificação `1040`, MF `6.0812`, data de nascimento `19/06/2008`.
+- ADLA DE ANDRADE SALES — inscrição `2120002`, classificação `211`, MF `7.4625`, data de nascimento `18/11/2009`.
+- ADRIAN CARVALHO DESVARS ARAUJO — inscrição `2060002`, classificação `507`, MF `7.0125`, data de nascimento `23/12/2010`.
+- ADRIANO HENRIQUE DO NASCIMENTO CARVALHO — inscrição `2030013`, classificação `141`, MF `7.6625`, data de nascimento `18/02/2008`.
+
+Utilize esses valores para verificar que inscrição, classificação, MF e data de nascimento continuam associados ao candidato correto.
+
+Confira as notas individuais e os indicadores de status no PDF original antes de estabelecer os valores esperados desses outros campos.
+
+**Importante:** a saída textual apresentada contém espaços vazios e valores deslocados. Não use o índice dos campos dessa saída como verdade de referência. O PDF original é a fonte para determinar as posições e associações corretas.
+
+## 8. Não descarte linhas nem invente dados
+
+Alguns candidatos podem ter campos vazios ou situações diferentes, incluindo registros de candidatos excluídos em outros documentos.
+
+Não descarte registros porque têm menos segmentos de texto que outras linhas. Não crie valores para completar a linha. Não conclua que um candidato está convocado ou excluído com base em um deslocamento aparente.
+
+Preserve os dados brutos e permita revisão quando não houver confiança suficiente para atribuir um valor a uma coluna.
+
+## 9. Testes de regressão obrigatórios
+
+Crie testes para:
+1. Reconhecer o cabeçalho real sem transformar os títulos institucionais em colunas.
+2. Separar `INSCRIÇÃO` e `CLAS`.
+3. Separar `DT_NASC`, `AC`, `RV` e `CI`.
+4. Manter as notas nas colunas corretas.
+5. Preservar nomes compostos em uma única coluna.
+6. Não criar colunas a partir de segmentos de texto adicionais.
+7. Manter a mesma estrutura em todas as linhas da tabela.
+8. Tratar campos vazios sem deslocar os demais valores.
+9. Reconhecer cabeçalhos repetidos e múltiplas páginas.
+10. Associar corretamente `X` e `Convocado` aos campos de status reais.
+11. Preservar registros com estruturas diferentes.
+12. Verificar os quatro registros de referência apresentados acima.
+13. Garantir que a tabela renderizada corresponda ao objeto estruturado, e não ao texto bruto.
+
+Se possível, utilize o PDF original como fixture de teste. Caso isso não seja possível, registre claramente quais testes utilizam dados sintéticos e não declare a correção validada no documento real.
+
+## 10. Validação visual e conclusão
+
+Após a correção:
+- Abra novamente o mesmo PDF que produziu a saída incorreta.
+- Compare a prévia com os cabeçalhos e os valores do PDF original.
+- Confirme que não há mais 22 colunas arbitrárias nem cabeçalhos genéricos derivados das posições.
+- Confirme que todas as colunas reais estão alinhadas.
+- Execute os testes, a verificação de tipos e a compilação de produção.
+
+No relatório final, informe a causa técnica do problema, os arquivos alterados, os testes executados e se a validação foi feita com o PDF original.
+
+**Critério de conclusão: o sistema deve reconstruir a tabela com base nos cabeçalhos reais e nos limites consistentes das colunas, e não transformar cada posição de texto em uma coluna. Todos os valores devem ficar sob os cabeçalhos corretos, sem agrupamento ou deslocamento.**
