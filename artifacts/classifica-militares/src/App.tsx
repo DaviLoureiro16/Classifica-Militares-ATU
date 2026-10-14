@@ -5,9 +5,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AVAILABLE_COMPETITIONS } from '@/domain/competitions/catalog';
 import {
-  ArrowRight, BookOpen, Check, FileText, Info, ListFilter, Search,
-  ShieldCheck, Upload, UserRoundSearch, X,
+  ArrowRight, BookOpen, Info, ListFilter, Search, ShieldCheck, Upload, UserRoundSearch,
 } from 'lucide-react';
+import { ImportPageContent } from '@/pages/import-page';
 import {
   Link, Route, Switch, useLocation, Router as WouterRouter,
 } from 'wouter';
@@ -128,7 +128,7 @@ function Home() {
         <Link href="/importar" className="feature-card" data-testid="card-importar">
           <span className="feature-icon"><Upload size={18} /></span>
           <h3>Preparar uma lista</h3>
-          <p>Escolha uma das opções atuais e confira um arquivo local. O envio e a leitura ainda não estão disponíveis.</p>
+          <p>Escolha EPCAR ou AFA e confira arquivos no navegador. A classificação ainda não é calculada.</p>
         </Link>
         <Link href="/classificacao" className="feature-card" data-testid="card-classificacao">
           <span className="feature-icon"><BookOpen size={18} /></span>
@@ -143,8 +143,8 @@ function Home() {
       </div>
       <div style={{ marginTop: 21 }}>
         <Notice warning>
-          <strong>Disponibilidade atual:</strong> EPCAR e AFA são as únicas opções habilitadas. Esta versão ainda não carrega
-          listas reais, resultados oficiais nem processa arquivos.
+          <strong>Disponibilidade atual:</strong> EPCAR e AFA são as únicas opções habilitadas. A importação permite leitura e prévia locais;
+          a plataforma ainda não calcula classificações nem publica resultados oficiais.
         </Notice>
       </div>
     </Layout>
@@ -162,139 +162,9 @@ function PageHeader({ eyebrow, title, description }: { eyebrow: string; title: s
 }
 
 function ImportPage() {
-  const [competition, setCompetition] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
-  const selectFiles = (selected: FileList | null) => {
-    if (!selected?.length) return;
-    const additions = Array.from(selected);
-    setFiles((current) => {
-      const currentKeys = new Set(current.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
-      return [
-        ...current,
-        ...additions.filter((file) => !currentKeys.has(`${file.name}-${file.size}-${file.lastModified}`)),
-      ];
-    });
-  };
   return (
     <Layout>
-      <PageHeader
-        eyebrow="Área de preparação"
-        title="Importar uma lista"
-        description="Selecione a competição e confira um arquivo no seu dispositivo. Nesta etapa, a seleção é apenas local: não há envio, extração ou leitura dos dados."
-      />
-      <Notice warning>
-        A função de importação ainda não está disponível. O arquivo permanece no seu dispositivo e não será processado.
-      </Notice>
-      <div className="steps" aria-label="Etapas de importação">
-        <div className="step current"><span className="step-number">1</span> Seleção</div>
-        <div className="step"><span className="step-number">2</span> Conferência</div>
-        <div className="step"><span className="step-number">3</span> Importação indisponível</div>
-      </div>
-      <div className="import-grid">
-        <section className="panel panel-pad">
-          <span className="eyebrow">01 · Competição</span>
-          <h2 style={{ font: '700 17px Manrope,sans-serif', color: '#25425d', margin: '8px 0 17px' }}>O que você está organizando?</h2>
-          <div className="field" style={{ marginBottom: 19 }}>
-            <label htmlFor="competition">Selecione a competição</label>
-            <select
-              id="competition"
-              className="control"
-              value={competition}
-              onChange={(event) => setCompetition(event.target.value)}
-              data-testid="select-competicao"
-            >
-              <option value="">Escolha uma opção</option>
-              {AVAILABLE_COMPETITIONS.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
-          </div>
-          <label className="upload-zone" htmlFor="local-file">
-            <input
-              id="local-file"
-              type="file"
-              multiple
-              accept=".csv,.xls,.xlsx,.pdf"
-              onChange={(event) => {
-                selectFiles(event.target.files);
-                event.target.value = '';
-              }}
-              data-testid="input-arquivo"
-            />
-            <span className="upload-icon"><Upload size={19} /></span>
-            <p className="upload-title">Escolher arquivo no dispositivo</p>
-            <p className="upload-help">CSV, XLS, XLSX ou PDF · seleção local</p>
-          </label>
-          {files.map((file, index) => {
-            const accepted = /\.(csv|xlsx|xls|pdf)$/i.test(file.name);
-            return (
-              <div key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
-                <div className="selected-file" data-testid={`preview-arquivo-${index}`}>
-                  <span className="feature-icon" style={{ margin: 0, flex: 'none' }}><FileText size={17} /></span>
-                  <div className="file-meta">
-                    <div className="file-name">{file.name}</div>
-                    <div className="file-size">{(file.size / 1024).toFixed(1)} KB · não enviado</div>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={`Remover ${file.name}`}
-                    className="btn btn-secondary"
-                    style={{ minHeight: 32, padding: '0 8px' }}
-                    onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                    data-testid={`button-remover-arquivo-${index}`}
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-                <div className={`validation ${accepted ? '' : 'invalid'}`} role="status">
-                  {accepted ? <Check size={15} /> : <Info size={15} />}
-                  <span>{accepted
-                    ? 'Extensão reconhecida. O conteúdo não foi enviado nem lido.'
-                    : 'Formato não reconhecido. Selecione CSV, XLS, XLSX ou PDF.'}</span>
-                </div>
-              </div>
-            );
-          })}
-          {competition && files.length > 0 && files.every((file) => /\.(csv|xlsx|xls|pdf)$/i.test(file.name)) && (
-            <p style={{ color: '#778695', fontSize: 11, lineHeight: 1.5, margin: '13px 0 0' }}>
-              {files.length} arquivo(s) selecionado(s) para conferência local: {competition}. A etapa seguinte não está habilitada.
-            </p>
-          )}
-        </section>
-        <section className="panel panel-pad">
-          <span className="eyebrow">02 · Prévia da seleção</span>
-          <h2 style={{ font: '700 17px Manrope,sans-serif', color: '#25425d', margin: '8px 0 17px' }}>O que acontece agora</h2>
-          <div style={{ border: '1px solid #e6ebef', background: '#f8fafb', borderRadius: 8, padding: 19, minHeight: 126 }}>
-            {files.length > 0 ? (
-              <>
-                <div style={{ color: '#345a76', display: 'flex', gap: 9, alignItems: 'center', fontWeight: 700, fontSize: 13 }}>
-                  <FileText size={17} /> {files.length} arquivo(s) selecionado(s)
-                </div>
-                <p style={{ color: '#6f7e8b', fontSize: 12, lineHeight: 1.6, margin: '9px 0 0' }}>
-                  A prévia exibe apenas nomes e tamanhos. O conteúdo não é aberto nem analisado.
-                </p>
-              </>
-            ) : (
-              <>
-                <div style={{ color: '#64788b', display: 'flex', gap: 9, alignItems: 'center', fontWeight: 700, fontSize: 13 }}>
-                  <FileText size={17} /> Nenhum arquivo selecionado
-                </div>
-                <p style={{ color: '#82909c', fontSize: 12, lineHeight: 1.6, margin: '9px 0 0' }}>
-                  Primeiro escolha uma competição e, se desejar, um arquivo para conferir a seleção.
-                </p>
-              </>
-            )}
-          </div>
-          <div style={{ marginTop: 15 }}>
-            <Notice>
-              <strong>Sem processamento:</strong> a validação verifica somente a extensão. Não confirma o conteúdo ou a autenticidade do documento.
-            </Notice>
-          </div>
-          <button type="button" className="btn" disabled style={{ width: '100%', marginTop: 17 }} aria-disabled="true" data-testid="button-importacao-indisponivel">
-            Importação indisponível nesta etapa
-          </button>
-        </section>
-      </div>
+      <ImportPageContent />
     </Layout>
   );
 }
@@ -427,10 +297,10 @@ function AboutPage() {
         <aside className="about-aside">
           <ShieldCheck size={21} style={{ marginBottom: 19, color: '#d1dce5' }} />
           <h3>O que esta versão oferece</h3>
-          <p>Navegação entre as páginas, seleção local de arquivos e estrutura de classificação sem registros inventados.</p>
+          <p>Navegação entre as páginas, leitura local de PDFs e planilhas e estrutura de classificação sem registros inventados.</p>
           <div className="rule" />
           <h3>O que ainda não oferece</h3>
-          <p>Consulta de candidatos, importação de listas, resultados oficiais ou qualquer cálculo de classificação.</p>
+          <p>Consulta real de candidatos, resultados oficiais, aplicação de regras de edital ou qualquer cálculo de classificação.</p>
         </aside>
       </div>
       <div style={{ marginTop: 18 }}>

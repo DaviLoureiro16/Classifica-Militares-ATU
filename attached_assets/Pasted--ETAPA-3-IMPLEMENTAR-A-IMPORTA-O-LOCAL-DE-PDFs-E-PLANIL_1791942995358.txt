@@ -1,0 +1,206 @@
+# ETAPA 3 — IMPLEMENTAR A IMPORTAÇÃO LOCAL DE PDFs E PLANILHAS
+
+Continue o desenvolvimento do projeto existente **Classifica Militares**, preservando a estrutura, a identidade visual, as rotas e as funcionalidades já implementadas.
+
+## 1. Objetivo desta etapa
+
+Implementar a página `/importar` para permitir que o usuário selecione um concurso militar, escolha a edição correspondente, importe vários arquivos e visualize os dados extraídos.
+
+O aplicativo será gratuito e público. Nesta primeira versão, os concursos disponíveis serão exclusivamente **EPCAR e AFA**. Não implemente regras de outros concursos nesta etapa.
+
+## 2. Formatos aceitos
+
+Permita importar vários arquivos simultaneamente, incluindo:
+
+- PDF (`.pdf`);
+- Excel (`.xlsx` e `.xls`);
+- CSV (`.csv`).
+
+Valide a extensão e, quando possível, o tipo real do arquivo. Apresente mensagens compreensíveis para arquivos inválidos, corrompidos, vazios ou incompatíveis.
+
+Não estabeleça um limite artificialmente baixo de arquivos. Se necessário, implemente limites razoáveis de tamanho por arquivo e informe-os claramente ao usuário.
+
+## 3. Processamento local
+
+Priorize bibliotecas gratuitas e processamento no navegador.
+
+- Para PDFs, utilize uma biblioteca adequada, como PDF.js, para extrair texto e identificar páginas.
+- Para Excel e CSV, utilize uma biblioteca adequada, como SheetJS, quando compatível com o projeto.
+- Não envie os arquivos a APIs de IA, serviços externos de OCR ou servidores para realizar a extração.
+- Não crie autenticação, pagamentos, banco de dados ou backend desnecessário.
+- Não adicione dependências pagas.
+- Não armazene permanentemente os documentos sem necessidade.
+
+Se uma biblioteca exigir configuração adicional, faça a integração corretamente e teste-a no ambiente existente. Não simule a extração de dados.
+
+## 4. Seleção do concurso e da edição
+
+Antes de importar, permita ao usuário selecionar:
+
+- Concurso: EPCAR ou AFA;
+- Ano/edição do concurso.
+
+O ano deve ser selecionado ou informado pelo usuário. Não presuma que todos os documentos enviados pertencem à mesma edição.
+
+Se os arquivos apresentarem anos ou concursos divergentes, sinalize a inconsistência e peça confirmação antes de prosseguir.
+
+## 5. Identificação dos documentos
+
+Tente identificar automaticamente o tipo de documento com base em seu conteúdo, título, cabeçalhos e estrutura, mas somente quando houver evidências suficientes.
+
+Disponibilize opções para o usuário corrigir ou definir manualmente o tipo:
+
+- Edital ou documento com regras do concurso;
+- Lista de resultado inicial;
+- Lista de resultado de etapa;
+- Resultado de recurso ou resultado retificado;
+- Lista de convocação ou matrícula;
+- Lista histórica de classificação;
+- Outro documento.
+
+A identificação automática deve ser apresentada como uma sugestão, não como uma certeza quando houver ambiguidade.
+
+Não presuma que uma lista de classificação, um resultado de etapa e um resultado de recurso sejam documentos equivalentes.
+
+## 6. Lista de arquivos importados
+
+Após a importação, apresente uma lista com, no mínimo:
+
+- Nome do arquivo;
+- Formato;
+- Tamanho;
+- Concurso e edição selecionados;
+- Tipo de documento identificado ou atribuído;
+- Quantidade de páginas, no caso de PDFs, quando disponível;
+- Quantidade de planilhas, no caso de arquivos Excel, quando disponível;
+- Estado do processamento;
+- Mensagem de erro ou aviso, quando aplicável.
+
+Utilize estados claros, por exemplo: “Aguardando processamento”, “Processado”, “Revisão necessária”, “PDF sem texto extraível” e “Falha na leitura”.
+
+Permita remover arquivos individualmente e limpar todos os arquivos importados de uma vez, com confirmação antes de limpar tudo.
+
+Identifique arquivos duplicados e avise o usuário. Não exclua automaticamente arquivos que tenham nomes iguais, pois podem ter conteúdos diferentes.
+
+## 7. Pré-visualização dos dados extraídos
+
+Após a leitura, permita abrir cada documento e visualizar seu conteúdo preliminar.
+
+Para PDFs:
+- Mostre o texto extraído, organizado por página.
+- Preserve a separação entre páginas.
+- Quando possível, identifique linhas e tabelas sem afirmar que a estrutura foi interpretada perfeitamente.
+- Informe quando não houver texto extraível ou quando o conteúdo parecer incompleto.
+
+Para Excel:
+- Mostre as planilhas disponíveis.
+- Permita selecionar cada planilha.
+- Exiba os dados em uma tabela de pré-visualização.
+- Preserve cabeçalhos, linhas, colunas, acentos, inscrições, datas e valores numéricos.
+- Não descarte linhas ou colunas silenciosamente.
+
+Para CSV:
+- Exiba os dados em tabela.
+- Trate adequadamente delimitadores comuns, cabeçalhos, acentos e codificações.
+- Se a leitura for ambígua, permita ao usuário escolher o delimitador.
+
+A pré-visualização deve ser utilizável mesmo quando o arquivo contém muitas páginas ou linhas. Evite renderizar todo o conteúdo de uma só vez quando isso comprometer o desempenho.
+
+## 8. PDFs digitalizados e OCR
+
+Um PDF pode conter páginas digitalizadas como imagens, sem texto selecionável.
+
+Detecte essa condição quando possível e informe ao usuário que a extração de texto não foi suficiente.
+
+Não apresente um PDF digitalizado como se tivesse sido lido corretamente. Não invente nomes, inscrições, notas ou classificações para preencher dados ausentes.
+
+Nesta etapa, implemente OCR local somente se houver uma solução gratuita, compatível e viável com a arquitetura existente. Se a implementação exigir mudanças desproporcionais, sinalize claramente a limitação e deixe a estrutura preparada para uma etapa posterior, sem simular resultados de OCR.
+
+## 9. Estrutura intermediária dos dados
+
+Organize os resultados da extração em uma estrutura consistente no estado da aplicação, separando:
+
+- Metadados do arquivo;
+- Concurso e edição selecionados;
+- Tipo de documento;
+- Texto extraído de cada página;
+- Planilhas, cabeçalhos e linhas extraídas;
+- Avisos, erros e informações que precisam de confirmação.
+
+Mantenha a origem dos dados rastreável, permitindo identificar de qual arquivo, página ou planilha veio cada informação.
+
+Não implemente ainda o cálculo da classificação, a aplicação de cotas, o preenchimento de vagas, a reclassificação ou a geração de listas finais.
+
+## 10. Interface e experiência do usuário
+
+Mantenha o estilo visual já existente no Classifica Militares.
+
+A página `/importar` deve ser intuitiva e responsiva, com:
+
+- Seleção de concurso e edição;
+- Área para arrastar e soltar arquivos;
+- Botão para selecionar arquivos no dispositivo;
+- Lista dos documentos importados;
+- Indicadores de progresso;
+- Pré-visualização;
+- Mensagens de erro e orientação;
+- Opções para remover arquivos;
+- Botão para avançar à conferência dos dados, que poderá encaminhar para a próxima etapa do fluxo.
+
+Não crie botões que aparentem funcionar sem executar a ação correspondente. Se uma funcionalidade estiver pendente, indique isso claramente.
+
+## 11. Privacidade
+
+Nesta etapa, processe os arquivos no navegador e não implemente envio intencional dos documentos para servidores ou serviços externos.
+
+Informe que os arquivos são processados localmente nesta fase. Não prometa privacidade absoluta nem afirme que todo dado permanece no dispositivo sem verificar bibliotecas, telemetria e comportamento real da aplicação.
+
+Permita limpar os arquivos e os dados temporários da sessão.
+
+## 12. Testes obrigatórios
+
+Teste e corrija os seguintes casos:
+
+1. Importação de um PDF com texto selecionável;
+2. Importação de um PDF digitalizado;
+3. Importação de um Excel com várias planilhas;
+4. Importação de um CSV com acentos;
+5. Importação simultânea de vários arquivos;
+6. Arquivo corrompido ou vazio;
+7. Extensão incompatível;
+8. Dois arquivos com o mesmo nome;
+9. Documento cujo ano não coincide com a edição selecionada;
+10. Arquivo grande, verificando o desempenho e a responsividade;
+11. Remoção de um arquivo;
+12. Limpeza de todos os arquivos;
+13. Ausência de envio dos documentos a serviços externos durante a extração.
+
+Corrija erros de TypeScript, dependências, compilação e execução que forem introduzidos por esta etapa.
+
+Não utilize dados fictícios como se fossem resultados oficiais de concursos. Se precisar criar arquivos de teste, identifique-os explicitamente como dados fictícios.
+
+## 13. Restrições importantes
+
+- Não refaça o projeto do zero.
+- Não remova as páginas ou funcionalidades existentes.
+- Não implemente ainda o motor de classificação.
+- Não invente regras de edital.
+- Não trate as regras documentadas pelo plugin como automaticamente confirmadas pelo edital oficial.
+- Não altere as regras de classificação para fazê-las funcionar com dados incompletos.
+- Não implemente OCR fictício.
+- Não considere a etapa concluída apenas porque a página foi criada.
+
+## 14. Relatório final
+
+Ao terminar, informe:
+
+1. Quais arquivos foram criados ou modificados;
+2. Quais bibliotecas foram adicionadas e por quê;
+3. Quais formatos foram realmente testados;
+4. Se a extração ocorre localmente;
+5. Como os PDFs sem texto extraível são tratados;
+6. Quais testes passaram e quais falharam;
+7. Quais limitações permanecem;
+8. Como posso testar manualmente a importação no aplicativo.
+
+Implemente agora somente esta etapa e aguarde minha validação antes de avançar para a próxima.
