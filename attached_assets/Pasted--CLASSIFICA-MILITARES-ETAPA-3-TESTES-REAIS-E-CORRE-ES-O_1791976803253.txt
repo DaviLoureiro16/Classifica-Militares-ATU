@@ -1,0 +1,100 @@
+# CLASSIFICA MILITARES — ETAPA 3: TESTES REAIS E CORREÇÕES
+
+O diagnóstico inicial confirmou que o projeto já possui:
+- React, TypeScript e Vite;
+- Página `/importar` funcional;
+- Seleção de concurso EPCAR/AFA e edição;
+- Importação local de PDF, XLS, XLSX e CSV;
+- `pdfjs-dist` e `xlsx` instalados;
+- Pré-visualização, seleção de planilhas, configuração de delimitador CSV e avisos de leitura;
+- Cinco documentos de especificação existentes em `docs/`.
+
+Não reconstrua a aplicação. Não substitua a implementação existente por outra sem necessidade.
+
+## 1. Inspecione a implementação atual
+
+Examine principalmente:
+- `src/pages/import-page.tsx`;
+- `src/lib/local-file-reader.ts`;
+- os componentes utilizados pela página;
+- `package.json` e o lockfile;
+- a configuração do PDF.js e de seu worker;
+- os documentos existentes em `docs/`.
+
+Identifique problemas concretos antes de modificar o código.
+
+## 2. Crie testes reproduzíveis
+
+Implemente testes automatizados adequados à arquitetura atual. Prefira ferramentas gratuitas e dependências compatíveis com o projeto.
+
+Crie arquivos de teste locais, claramente identificados como fictícios, cobrindo:
+
+1. PDF com texto selecionável;
+2. PDF sem texto extraível ou digitalizado;
+3. PDF inválido ou corrompido;
+4. XLSX com várias planilhas;
+5. XLS com dados tabulares, se o suporte atual permitir;
+6. CSV com acentos e caracteres portugueses;
+7. CSV com delimitadores diferentes;
+8. Arquivo vazio;
+9. Arquivo com extensão incompatível com seu conteúdo;
+10. Importação de vários arquivos;
+11. Arquivos com nomes iguais e conteúdos diferentes;
+12. Remoção individual e limpeza da fila;
+13. Erros de leitura e apresentação de mensagens compreensíveis.
+
+Não dependa de resultados oficiais de concursos para testar a infraestrutura. Os dados de teste devem ser fictícios e identificados como tais.
+
+## 3. Verifique a extração e a integridade
+
+Confirme que:
+- Os textos extraídos dos PDFs são exibidos na ordem correta das páginas.
+- As planilhas preservam cabeçalhos, linhas, colunas, acentos e valores.
+- A escolha da aba altera efetivamente a pré-visualização.
+- O delimitador escolhido pelo usuário é respeitado.
+- Arquivos problemáticos geram avisos, sem travar toda a fila.
+- A aplicação não descarta silenciosamente dados que não conseguiu interpretar.
+- A interface não apresenta extração bem-sucedida quando o arquivo não foi lido corretamente.
+- Arquivos duplicados são sinalizados, mas não excluídos automaticamente apenas por terem nomes iguais.
+
+## 4. Verifique privacidade e dependências
+
+Inspecione o código e confirme se o conteúdo dos arquivos é enviado para algum servidor, API externa, serviço de OCR ou ferramenta de IA.
+
+A leitura deve ocorrer localmente no navegador. Não implemente serviços pagos, autenticação ou banco de dados para esta etapa.
+
+Verifique também a origem e o carregamento das dependências, inclusive o pacote `xlsx` e os recursos utilizados pelo PDF.js. Se houver carregamento de código ou recursos de terceiros em tempo de execução, documente isso e avalie uma solução compatível com o projeto.
+
+Não afirme que os arquivos nunca deixam o dispositivo sem verificar o comportamento efetivo da aplicação.
+
+## 5. Corrija somente os problemas encontrados
+
+Preserve a interface e todas as funcionalidades já existentes. Não implemente ainda:
+- Cálculo de classificação;
+- Reclassificação;
+- Aplicação de cotas;
+- Distribuição de vagas;
+- Geração de classificação definitiva;
+- Exportação final de relatórios.
+
+Não use dados fictícios para simular resultados de importação bem-sucedida.
+
+## 6. Execute e apresente os resultados
+
+Execute os testes automatizados e, quando disponíveis, a verificação de TypeScript, o build de produção e os testes de interface.
+
+Ao concluir, apresente uma tabela com:
+- Teste;
+- Resultado: aprovado, reprovado ou não executado;
+- Evidência obtida;
+- Correção realizada, se aplicável.
+
+Informe também:
+- Arquivos criados ou alterados;
+- Comandos executados;
+- Problemas ainda existentes;
+- Quais testes dependem de verificação manual no navegador.
+
+Não marque um teste como aprovado apenas porque o código parece correto. Não invente resultados de execução.
+
+Aguarde minha validação antes de iniciar a Etapa 4.

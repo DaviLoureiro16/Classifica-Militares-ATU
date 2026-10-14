@@ -1,1 +1,2 @@
 - [Classifica Militares](classifica-militares-product.md) — general military-exam platform; EPCAR/AFA only are enabled now, with neutral non-official language.
+- [pnpm workspace editing](pnpm-workspace-editing.md) — the available pnpm 10.26.1 rewrites workspace overrides and catalog details during package additions; inspect for unrelated drift.
