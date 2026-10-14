@@ -1,0 +1,103 @@
+# CLASSIFICA MILITARES — AVALIAÇÃO DA EXTRAÇÃO DE PDF E CONVERSÃO CONDICIONAL PARA XLSX
+
+Antes de implementar qualquer conversor, examine a implementação atual de leitura de PDFs e planilhas.
+
+## Objetivo
+
+Melhorar a confiabilidade da importação de listas de classificação e resultados oficiais, aproveitando a leitura estruturada de XLS/XLSX quando isso trouxer uma vantagem real.
+
+**Não implemente a conversão automaticamente para todos os PDFs.** A conversão só deve ser considerada quando houver evidências de que a extração direta não preservou adequadamente a estrutura tabular.
+
+## 1. Avaliar a extração existente
+
+Examine o leitor de PDF, a pré-visualização e os testes atuais.
+
+Verifique se a implementação consegue identificar:
+- Cabeçalhos e colunas;
+- Linhas e células;
+- Nomes e números de inscrição;
+- Notas, médias e classificações;
+- Quebras de página;
+- Linhas incompletas ou valores deslocados.
+
+Não considere que extrair texto em ordem de leitura equivale a reconstruir uma tabela corretamente.
+
+## 2. Criar critérios de qualidade
+
+Implemente uma avaliação preliminar da extração com indicadores como:
+- Proporção de linhas que correspondem à estrutura esperada;
+- Presença de cabeçalhos reconhecíveis;
+- Consistência no número de campos por linha;
+- Quantidade de linhas incompletas;
+- Valores aparentemente deslocados;
+- Texto insuficiente ou ausência de camada textual.
+
+Esses indicadores são sinais de qualidade, não garantias de correção. Não classifique um PDF como confiável apenas porque contém muitas linhas ou números.
+
+Quando não houver estrutura suficiente para avaliar, informe que a qualidade é indeterminada.
+
+## 3. Definir o comportamento conforme o resultado
+
+- **Extração estruturada e consistente:** permitir continuar com o PDF, sem conversão obrigatória.
+- **Extração possivelmente confusa:** recomendar que o usuário procure uma versão XLS/XLSX original. Se não houver, oferecer conversão local para XLSX somente se for tecnicamente viável.
+- **Extração insuficiente ou PDF digitalizado:** avisar que os dados não foram extraídos de forma confiável. Não inventar uma tabela nem afirmar que a conversão resolverá o problema.
+
+O usuário deve poder decidir se deseja tentar a conversão, cancelar ou fornecer outro arquivo.
+
+## 4. Se a conversão local for viável
+
+Priorize bibliotecas gratuitas e compatíveis com a arquitetura atual. Não use APIs pagas, serviços externos de conversão ou envio de documentos a servidores.
+
+A conversão deve:
+- Gerar uma planilha XLSX para pré-visualização e conferência;
+- Tentar preservar linhas, colunas, cabeçalhos, acentos, inscrições, notas e médias;
+- Registrar a página de origem de cada linha ou conjunto de linhas, quando possível;
+- Sinalizar campos que não puderem ser associados com confiança;
+- Manter o PDF original intacto;
+- Identificar a planilha como conversão derivada do PDF, não como documento oficial original.
+
+Não afirme que uma conversão preserva perfeitamente o layout se isso não tiver sido verificado.
+
+## 5. Interface
+
+Na página `/importar`, mostre um diagnóstico de qualidade da extração e uma recomendação compreensível.
+
+Exemplos de mensagens:
+- “A estrutura da tabela parece consistente. Você pode continuar com o PDF.”
+- “Algumas linhas podem ter colunas desalinhadas. Recomendamos conferir os dados ou fornecer uma planilha original.”
+- “Não foi possível extrair texto suficiente deste PDF. A conversão automática pode não funcionar.”
+
+Só mostre a opção de conversão se ela estiver realmente implementada e tiver passado pelos testes.
+
+## 6. Testes
+
+Utilize arquivos fictícios e identificados como teste para cobrir:
+- PDF com tabela simples e bem estruturada;
+- PDF com tabela que continua em várias páginas;
+- PDF com cabeçalhos repetidos;
+- PDF com colunas desalinhadas;
+- PDF com texto em várias colunas;
+- PDF sem camada textual;
+- PDF corrompido;
+- Conversão para XLSX, se implementada;
+- Comparação da prévia convertida com o conteúdo extraído do original.
+
+Não use apenas PDFs sintéticos de texto simples para alegar que a conversão funciona com documentos oficiais complexos.
+
+## 7. Restrições
+
+- Não modificar as regras de classificação.
+- Não alterar os dados originais importados.
+- Não converter automaticamente todos os PDFs.
+- Não usar serviços externos ou pagos.
+- Não implementar OCR fictício.
+- Não introduzir uma dependência pesada sem justificar sua necessidade.
+- Preservar as funcionalidades e os testes existentes.
+
+## 8. Relatório final
+
+Primeiro, informe se a extração atual realmente apresenta limitações que justifiquem um conversor.
+
+Se justificar, implemente a solução condicional e execute os testes. Caso contrário, explique por que a conversão não é necessária neste momento e proponha a alternativa mais simples.
+
+Informe o que foi testado de verdade e quais limitações permanecem. Não inicie outras etapas do projeto.
