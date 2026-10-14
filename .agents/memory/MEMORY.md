@@ -1,1 +1,1 @@
-- [Classifica Militares](classifica-militares-product.md) — keep the product free, public, and clearly independent of FAB/EPCAR/AFA.
+- [Classifica Militares](classifica-militares-product.md) — general military-exam platform; EPCAR/AFA only are enabled now, with neutral non-official language.

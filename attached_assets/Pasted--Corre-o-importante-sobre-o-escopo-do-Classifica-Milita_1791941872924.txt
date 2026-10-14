@@ -1,0 +1,59 @@
+## Correção importante sobre o escopo do Classifica Militares
+
+Quero ajustar o conceito central do projeto. **O Classifica Militares será uma plataforma geral para concursos militares brasileiros, e não uma ferramenta exclusiva da FAB.**
+
+### 1. Público-alvo e abrangência
+
+O sistema deverá ser desenvolvido para atender, futuramente, candidatos de concursos militares de diferentes instituições e forças armadas, incluindo, por exemplo:
+- Força Aérea Brasileira (FAB);
+- Exército Brasileiro (EB);
+- Marinha do Brasil (MB);
+- Outras instituições militares que realizem processos seletivos e concursos de ingresso.
+
+Esses exemplos representam possibilidades futuras, não funcionalidades já implementadas.
+
+### 2. Disponibilidade atual
+
+**Neste momento, somente EPCAR e AFA estarão disponíveis para uso.**
+
+Isso ocorre porque são os concursos para os quais temos disponibilidade de listas e regras de classificação para iniciar o desenvolvimento.
+
+Portanto:
+- EPCAR e AFA devem ser as únicas opções selecionáveis e funcionais nesta primeira versão.
+- Os demais concursos militares devem ser considerados parte da expansão futura do projeto.
+- Não crie dados fictícios, classificações simuladas apresentadas como oficiais ou regras presumidas para outras instituições.
+- Não adicione opções para concursos ainda indisponíveis como se já estivessem funcionando.
+
+### 3. Identidade e comunicação
+
+Revise os textos da interface para que o projeto seja apresentado como uma plataforma de **classificação e análise de concursos militares em geral**.
+
+Evite nomes, slogans, descrições e elementos visuais que deem a entender que o sistema pertence à FAB ou é destinado exclusivamente a ela.
+
+O nome continuará sendo **Classifica Militares**.
+
+A página inicial pode apresentar uma mensagem como:
+
+"Uma plataforma gratuita para organizar, consultar e analisar listas de classificação de concursos militares. Atualmente, com suporte para EPCAR e AFA, e preparada para expandir para outras instituições."
+
+Na página Sobre, deixe claro que o Classifica Militares é um projeto independente, não oficial e sem vínculo institucional com as Forças Armadas.
+
+### 4. Arquitetura preparada para expansão
+
+Organize o código para que futuramente seja possível adicionar outros concursos sem reconstruir o aplicativo inteiro.
+
+Não deixe regras específicas da EPCAR ou AFA espalhadas indiscriminadamente pelo sistema. Separe:
+- A estrutura geral da plataforma;
+- Os dados e documentos de cada concurso;
+- As regras específicas de cada processo seletivo;
+- Os recursos comuns, como importação, pesquisa, classificação e exportação.
+
+Não presuma que todos os concursos militares usam as mesmas fórmulas, critérios, cotas, etapas ou formatos de resultado.
+
+### 5. Limites desta alteração
+
+Faça apenas as alterações necessárias para corrigir o posicionamento, os textos e a organização da arquitetura inicial.
+
+Preserve as páginas e funcionalidades que já estão funcionando. Não reinicie o projeto, não apague arquivos e não implemente agora regras de classificação de concursos ainda indisponíveis.
+
+Ao terminar, informe quais arquivos foram alterados e confirme que EPCAR e AFA continuam sendo as únicas opções funcionais nesta versão.
