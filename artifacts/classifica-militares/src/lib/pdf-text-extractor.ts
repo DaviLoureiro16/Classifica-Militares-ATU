@@ -8,6 +8,9 @@ export interface PdfTextLine {
   text: string;
   cells: string[];
   isHeader?: boolean;
+  isStructured?: boolean;
+  needsReview?: boolean;
+  unmappedFragments?: string[];
 }
 
 export type PdfQualityLevel = 'consistent' | 'caution' | 'insufficient' | 'indeterminate';
@@ -21,6 +24,7 @@ export interface PdfQualityReport {
   fieldCountConsistency: number | null;
   incompleteLines: number;
   possibleShiftedLines: number;
+  needsReviewLines: number;
   reasons: string[];
 }
 
@@ -74,10 +78,10 @@ function normalizeText(value: string): string {
 function getHeaderCategories(text: string): Set<string> {
   const value = normalizeText(text);
   const categories = new Set<string>();
-  if (/\b(?:nome|candidato|candidata|inscrito|participante)\w*\b/.test(value)) categories.add('identity');
-  if (/\b(?:inscri|matricul|identific|codig)\w*\b/.test(value)) categories.add('identifier');
-  if (/\b(?:nota|media|pontos|pontuac|mf|gp|gm|gi|gr)\w*\b/.test(value)) categories.add('score');
-  if (/\b(?:classific|clas|posic|situac|resultado|ordem)\w*\b/.test(value)) categories.add('result');
+  if (/\b(?:nome|candidato|candidata|inscrito|participante|inha)\w*\b/.test(value)) categories.add('identity');
+  if (/\b(?:inscri|matricul|identific|codig|dt_nasc)\w*\b/.test(value)) categories.add('identifier');
+  if (/\b(?:nota|media|pontos|pontuac|mf|gp|gm|gi|gr|port|mat|ing|red)\w*\b/.test(value)) categories.add('score');
+  if (/\b(?:classific|clas|posic|situac|resultado|ordem|convocado|ci)\w*\b/.test(value)) categories.add('result');
   return categories;
 }
 
@@ -86,13 +90,17 @@ function isRecognizedHeader(line: PdfTextLine): boolean {
 }
 
 function isHeaderFieldLabel(text: string): boolean {
-  return /\b(?:nome|candidat\w*|inscri\w*|matricul\w*|identific\w*|codig\w*|classific\w*|clas|posic\w*|situac\w*|resultad\w*|ordem|mf|gp|gm|gi|gr|media|nota|pontos|pontuac\w*|disciplina|prova|portugues|matematica|fisica|ingles|fase|etapa|status)\b/i
+  return /\b(?:inha|nome|candidat\w*|inscri\w*|matricul\w*|identific\w*|codig\w*|classific\w*|clas|mf|port|mat|ing|red|dt_nasc|ac|rv|ci|x|convocad\w*|posic\w*|situac\w*|resultad\w*|ordem|gp|gm|gi|gr|media|nota|pontos|pontuac\w*|disciplina|prova|portugues|matematica|fisica|ingles|fase|etapa|status)\b/i
     .test(normalizeText(text));
 }
 
 function extractHeaderLabels(text: string): string[] {
   const normalized = normalizeText(text);
   const labels = [
+    'nome do candidato',
+    'nome completo',
+    'data de nascimento',
+    'dt_nasc',
     'classificacao',
     'identificacao',
     'participante',
@@ -103,14 +111,25 @@ function extractHeaderLabels(text: string): string[] {
     'situacao',
     'resultado',
     'pontuacao',
+    'convocado',
     'portugues',
     'matematica',
     'disciplina',
     'posicao',
     'pontos',
     'media',
+    'inha',
     'nome',
     'mf',
+    'port',
+    'mat',
+    'ing',
+    'red',
+    'ac',
+    'rv',
+    'ci',
+    'x',
+    'clas',
     'gp',
     'gm',
     'gi',
@@ -148,6 +167,57 @@ function extractHeaderLabels(text: string): string[] {
     previousMatchEnd = index;
   }
   return matches.map((match) => match.label);
+}
+
+interface ColumnAnchor {
+  x: number;
+  fontSize: number;
+  sampleCount: number;
+}
+
+function mergeColumnAnchors(candidates: Array<{ x: number; fontSize: number }>): ColumnAnchor[] {
+  const anchors: ColumnAnchor[] = [];
+  for (const candidate of [...candidates].sort((left, right) => left.x - right.x)) {
+    const last = anchors.at(-1);
+    const tolerance = last
+      ? Math.max(1.5, Math.min(3.5, Math.max(last.fontSize, candidate.fontSize) * 0.25))
+      : 0;
+    if (last && Math.abs(last.x - candidate.x) <= tolerance) {
+      last.x = (last.x * last.sampleCount + candidate.x) / (last.sampleCount + 1);
+      last.fontSize = Math.max(last.fontSize, candidate.fontSize);
+      last.sampleCount += 1;
+    } else {
+      anchors.push({ ...candidate, sampleCount: 1 });
+    }
+  }
+  return anchors;
+}
+
+function findColumnAssignment(
+  x: number,
+  fontSize: number,
+  anchors: ColumnAnchor[],
+): { index: number; aligned: boolean } | null {
+  if (anchors.length === 0) return null;
+  const tolerance = Math.max(2.5, Math.min(6, fontSize * 0.4));
+  let closestIndex = -1;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  anchors.forEach((anchor, index) => {
+    const distance = Math.abs(anchor.x - x);
+    if (distance < closestDistance) {
+      closestIndex = index;
+      closestDistance = distance;
+    }
+  });
+  if (closestDistance <= tolerance) return { index: closestIndex, aligned: true };
+  if (x < anchors[0].x || x > anchors.at(-1)!.x) return null;
+
+  let precedingIndex = 0;
+  for (let index = 1; index < anchors.length; index += 1) {
+    if (anchors[index].x > x) break;
+    precedingIndex = index;
+  }
+  return { index: precedingIndex, aligned: false };
 }
 
 function makePdfLines(items: unknown[]): PdfTextLine[] {
@@ -234,21 +304,14 @@ function makePdfLines(items: unknown[]): PdfTextLine[] {
       .filter((item) => isHeaderFieldLabel(item.text))
       .map((item) => ({ x: item.x, fontSize: item.fontSize })));
   const dataGroups = headerGroups.filter(({ isHeader }) => !isHeader).map(({ group }) => group);
-  const headerAnchors = headerColumnStarts.filter((anchor, index) => {
-    const tolerance = Math.max(2.5, Math.min(5, anchor.fontSize * 0.35));
-    const repeatedInRows = dataGroups.filter((group) => group.items.some((item) => Math.abs(item.x - anchor.x) <= tolerance)).length;
-    const requiredRows = Math.min(2, dataGroups.length);
-    return repeatedInRows >= requiredRows
-      && !headerColumnStarts.slice(0, index).some((previous) => Math.abs(previous.x - anchor.x) <= tolerance);
-  });
   const repeatedDataStarts: Array<{ x: number; fontSize: number; rows: Set<number> }> = [];
   dataGroups.forEach((group, rowIndex) => {
     for (const item of group.items) {
       if (!item.text.trim()) continue;
-      const tolerance = Math.max(2.5, Math.min(5, item.fontSize * 0.35));
+      const tolerance = Math.max(1.5, Math.min(3.5, item.fontSize * 0.25));
       const cluster = repeatedDataStarts.find((candidate) => Math.abs(candidate.x - item.x) <= Math.max(
         tolerance,
-        Math.max(2.5, Math.min(5, candidate.fontSize * 0.35)),
+        Math.max(1.5, Math.min(3.5, candidate.fontSize * 0.25)),
       ));
       if (cluster) {
         if (!cluster.rows.has(rowIndex)) {
@@ -260,33 +323,88 @@ function makePdfLines(items: unknown[]): PdfTextLine[] {
       }
     }
   });
-  const repeatedAnchors = repeatedDataStarts.filter((anchor) => anchor.rows.size >= Math.min(2, dataGroups.length));
-  const columnAnchors = [...headerAnchors, ...repeatedAnchors]
-    .filter((anchor, index, anchors) => !anchors.slice(0, index).some((previous) => (
-      Math.abs(previous.x - anchor.x) <= Math.max(2.5, Math.min(5, anchor.fontSize * 0.35))
-    )));
+  const repeatedAnchors = repeatedDataStarts
+    .filter((anchor) => anchor.rows.size >= Math.min(2, dataGroups.length))
+    .map(({ x, fontSize }) => ({ x, fontSize }));
+  const columnAnchors = mergeColumnAnchors([...headerColumnStarts, ...repeatedAnchors]);
+  const hasPositionedColumns = columnAnchors.length >= 2;
 
   const lines: PdfTextLine[] = headerGroups.map(({ group, isHeader }) => {
-    const rowItems = group.items.sort((left, right) => left.x - right.x);
-    const cells: string[] = [];
-    let lastItem: PositionedTextItem | undefined;
-    for (const item of rowItems) {
-      const gap = lastItem ? item.x - (lastItem.x + lastItem.width) : 0;
-      const threshold = Math.max(4, item.fontSize * 1.1);
-      const anchorTolerance = Math.max(2.5, Math.min(5, item.fontSize * 0.35));
-      const startsColumn = columnAnchors.some((anchor) => Math.abs(anchor.x - item.x) <= anchorTolerance);
-      if (cells.length === 0 || gap > threshold || startsColumn) {
-        cells.push(item.text.trim());
+    const rowItems = [...group.items].sort((left, right) => left.x - right.x);
+    const rawText = rowItems.map((item) => item.text.trim()).filter(Boolean).join(' ');
+    let cells: string[] = [];
+    let needsReview = false;
+    const unmappedFragments: string[] = [];
+
+    if (hasPositionedColumns) {
+      cells = Array.from({ length: columnAnchors.length }, () => '');
+      if (isHeader && rowItems.length === 1) {
+        const labels = extractHeaderLabels(rowItems[0].text);
+        if (labels.length === cells.length) {
+          cells = labels;
+        } else {
+          const assignment = findColumnAssignment(rowItems[0].x, rowItems[0].fontSize, columnAnchors);
+          if (assignment) {
+            cells[assignment.index] = rowItems[0].text.trim();
+          } else {
+            unmappedFragments.push(rowItems[0].text.trim());
+          }
+          needsReview = labels.length > 1 || !assignment;
+        }
       } else {
-        cells[cells.length - 1] = `${cells[cells.length - 1]} ${item.text.trim()}`.trim();
+        for (const item of rowItems) {
+          const assignment = findColumnAssignment(item.x, item.fontSize, columnAnchors);
+          if (!assignment) {
+            unmappedFragments.push(item.text.trim());
+            needsReview = true;
+            continue;
+          }
+          if (!assignment.aligned) needsReview = true;
+
+          if (isHeader) {
+            const labels = extractHeaderLabels(item.text);
+            if (labels.length > 1 && assignment.index + labels.length <= cells.length) {
+              labels.forEach((label, offset) => {
+                cells[assignment.index + offset] = label;
+              });
+            } else if (labels.length > 1) {
+              unmappedFragments.push(item.text.trim());
+              needsReview = true;
+            } else {
+              cells[assignment.index] = [cells[assignment.index], item.text.trim()].filter(Boolean).join(' ');
+            }
+          } else {
+            cells[assignment.index] = [cells[assignment.index], item.text.trim()].filter(Boolean).join(' ');
+          }
+        }
       }
-      lastItem = item;
+    } else {
+      let lastItem: PositionedTextItem | undefined;
+      for (const item of rowItems) {
+        const gap = lastItem ? item.x - (lastItem.x + lastItem.width) : 0;
+        const threshold = Math.max(4, item.fontSize * 1.1);
+        if (cells.length === 0 || gap > threshold) {
+          cells.push(item.text.trim());
+        } else {
+          cells[cells.length - 1] = `${cells[cells.length - 1]} ${item.text.trim()}`.trim();
+        }
+        lastItem = item;
+      }
+      if (isHeader && cells.length === 1) {
+        const labels = extractHeaderLabels(cells[0]);
+        if (labels.length >= 2) cells.splice(0, 1, ...labels);
+      }
     }
-    if (isHeader && cells.length === 1) {
-      const labels = extractHeaderLabels(cells[0]);
-      if (labels.length >= 2) cells.splice(0, 1, ...labels);
-    }
-    return { text: cells.join('  '), cells, isHeader };
+
+    const populatedCells = cells.filter((cell) => cell.trim()).length;
+    return {
+      text: rawText,
+      cells,
+      isHeader,
+      isStructured: isHeader || populatedCells >= 2,
+      ...(needsReview || unmappedFragments.length > 0 ? { needsReview: true } : {}),
+      ...(unmappedFragments.length > 0 ? { unmappedFragments } : {}),
+    };
   });
 
   if (unpositioned.length > 0) {
@@ -319,19 +437,34 @@ export function assessPdfQuality(
   const pageTextCoverage = pageCount > 0 ? textPages / pageCount : 0;
   const allLines = pages.flatMap((page) => page.lines);
   const headers = allLines.filter(isRecognizedHeader);
-  const dataLines = allLines.filter((line) => line.cells.length >= 2 && !isRecognizedHeader(line));
-  const fieldCounts = new Map<number, number>();
-  for (const line of dataLines) fieldCounts.set(line.cells.length, (fieldCounts.get(line.cells.length) ?? 0) + 1);
-  const expectedFields = [...fieldCounts.entries()]
-    .sort((left, right) => right[1] - left[1] || left[0] - right[0])[0]?.[0] ?? null;
-  const expectedCount = expectedFields === null ? 0 : fieldCounts.get(expectedFields) ?? 0;
-  const fieldCountConsistency = dataLines.length > 0 ? expectedCount / dataLines.length : null;
+  const dataLines = allLines.filter((line) => !isRecognizedHeader(line) && (
+    line.isStructured ?? line.cells.filter((cell) => cell.trim()).length >= 2
+  ));
+  const headerFieldCounts = new Map<number, number>();
+  for (const line of headers) headerFieldCounts.set(line.cells.length, (headerFieldCounts.get(line.cells.length) ?? 0) + 1);
+  const observedFieldCounts = new Map<number, number>();
+  for (const line of dataLines) {
+    const populatedCount = line.cells.filter((cell) => cell.trim()).length;
+    observedFieldCounts.set(populatedCount, (observedFieldCounts.get(populatedCount) ?? 0) + 1);
+  }
+  const expectedFields = [...headerFieldCounts.entries()]
+    .sort((left, right) => right[1] - left[1] || right[0] - left[0])[0]?.[0]
+    ?? [...observedFieldCounts.entries()]
+      .sort((left, right) => right[1] - left[1] || right[0] - left[0])[0]?.[0]
+    ?? null;
+  const completeRows = expectedFields === null
+    ? 0
+    : dataLines.filter((line) => line.cells.length >= expectedFields
+      && line.cells.slice(0, expectedFields).every((cell) => cell.trim())).length;
+  const fieldCountConsistency = dataLines.length > 0 ? completeRows / dataLines.length : null;
   const incompleteLines = expectedFields === null
     ? 0
-    : dataLines.filter((line) => line.cells.length < expectedFields).length;
+    : dataLines.filter((line) => line.cells.length < expectedFields
+      || line.cells.slice(0, expectedFields).some((cell) => !cell.trim())).length;
   const possibleShiftedLines = expectedFields === null
     ? 0
-    : dataLines.filter((line) => line.cells.length > expectedFields).length;
+    : dataLines.filter((line) => line.cells.length > expectedFields || (line.unmappedFragments?.length ?? 0) > 0).length;
+  const needsReviewLines = dataLines.filter((line) => line.needsReview).length;
   const textLength = pages.reduce((total, page) => total + page.text.trim().length, 0);
   const reasons: string[] = [];
   let level: PdfQualityLevel;
@@ -349,14 +482,15 @@ export function assessPdfQuality(
     if (headers.length === 0) reasons.push('Não foi reconhecido um cabeçalho com campos identificáveis.');
     if (dataLines.length < 3) reasons.push('Há poucas linhas com separação espacial de campos para comparar.');
     if (incompleteLines > 0) {
-      reasons.push(`${incompleteLines} linha(s) têm menos campos que o padrão; podem corresponder a candidatos excluídos e foram mantidas.`);
+      reasons.push(`${incompleteLines} linha(s) têm campos vazios; podem refletir o documento original e foram mantidas.`);
     }
     if (possibleShiftedLines > 0) {
-      reasons.push(`${possibleShiftedLines} linha(s) têm campos além do padrão observado e foram mantidas para conferência.`);
+      reasons.push(`${possibleShiftedLines} linha(s) têm trechos sem posição segura; o conteúdo foi preservado para conferência.`);
     }
+    if (needsReviewLines > 0) reasons.push(`${needsReviewLines} linha(s) foram marcadas para conferir o alinhamento.`);
 
     const layoutLooksInconsistent = dataLines.length >= 3
-      && ((fieldCountConsistency ?? 0) < 0.85 || incompleteLines > 0 || possibleShiftedLines > 0);
+      && ((fieldCountConsistency ?? 0) < 0.85 || incompleteLines > 0 || possibleShiftedLines > 0 || needsReviewLines > 0);
     if (pagesWithoutText.length > 0 || layoutLooksInconsistent) {
       level = 'caution';
     } else if (headers.length > 0 && dataLines.length >= 3 && (fieldCountConsistency ?? 0) >= 0.85) {
@@ -382,6 +516,7 @@ export function assessPdfQuality(
     fieldCountConsistency,
     incompleteLines,
     possibleShiftedLines,
+    needsReviewLines,
     reasons,
   };
 }

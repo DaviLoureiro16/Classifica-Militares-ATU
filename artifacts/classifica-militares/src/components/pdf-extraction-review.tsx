@@ -53,8 +53,9 @@ export function PdfQualityNotice({ quality, documentId }: { quality: PdfQualityR
         <div><dt>Linhas com campos separados</dt><dd>{quality.structuredRows}</dd></div>
         <div><dt>Campos no padrão observado</dt><dd>{quality.expectedFields ?? 'Indeterminado'}</dd></div>
         <div><dt>Consistência de campos</dt><dd>{consistency}</dd></div>
-        <div><dt>Linhas com menos campos que o padrão</dt><dd>{quality.incompleteLines}</dd></div>
+        <div><dt>Linhas com campos vazios</dt><dd>{quality.incompleteLines}</dd></div>
         <div><dt>Linhas com campos excedentes</dt><dd>{quality.possibleShiftedLines}</dd></div>
+        <div><dt>Linhas para conferir alinhamento</dt><dd>{quality.needsReviewLines}</dd></div>
       </dl>
       {quality.reasons.length > 0 && (
         <ul className="import-pdf-quality-reasons">
@@ -66,17 +67,6 @@ export function PdfQualityNotice({ quality, documentId }: { quality: PdfQualityR
       </p>
     </section>
   );
-}
-
-function getColumnLabel(index: number): string {
-  let value = index + 1;
-  let label = '';
-  while (value > 0) {
-    value -= 1;
-    label = String.fromCharCode(65 + (value % 26)) + label;
-    value = Math.floor(value / 26);
-  }
-  return label;
 }
 
 export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; testId: string }) {
@@ -97,12 +87,17 @@ export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; test
     .map((line, index) => ({ line, sourceLine: index + 1 }))
     .filter((_, index) => index !== headerLineIndex);
   const visibleLines = dataLines.slice(0, 50);
-  const columns = Math.max(
+  const schemaColumns = Math.max(
     1,
-    Math.min(12, headerLine?.cells.length ?? 0),
-    Math.min(12, dataLines.reduce((largest, item) => Math.max(largest, item.line.cells.length), 0)),
+    headerLine?.cells.length ?? 0,
+    dataLines.reduce((largest, item) => Math.max(largest, item.line.cells.length), 0),
   );
-  const headers = Array.from({ length: columns }, (_, index) => headerLine?.cells[index]?.trim() || `Campo ${getColumnLabel(index)}`);
+  const hasUnmappedFragments = lines.some((line) => (line.unmappedFragments?.length ?? 0) > 0);
+  const columns = schemaColumns + (hasUnmappedFragments ? 1 : 0);
+  const headers = Array.from(
+    { length: schemaColumns },
+    (_, index) => headerLine?.cells[index]?.trim() || 'Cabeçalho não identificado',
+  );
 
   return (
     <div className="import-pdf-layout" data-testid={`pdf-layout-${testId}`}>
@@ -113,13 +108,21 @@ export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; test
       <div className="import-table-wrap">
         <table className="import-data-table" data-testid={`table-pdf-layout-${testId}`}>
           <thead>
-            <tr><th scope="col">Linha</th>{headers.map((header) => <th scope="col" key={header}>{header}</th>)}</tr>
+            <tr>
+              <th scope="col">Linha</th>
+              {headers.map((header, index) => <th scope="col" key={`${index}-${header}`}>{header}</th>)}
+              {hasUnmappedFragments && <th scope="col">Trecho sem posição segura</th>}
+            </tr>
           </thead>
           <tbody>
             {visibleLines.length > 0 ? visibleLines.map(({ line, sourceLine }) => (
-              <tr key={sourceLine}>
-                <th scope="row">{sourceLine}</th>
+              <tr key={sourceLine} data-review-required={line.needsReview ? 'true' : undefined}>
+                <th scope="row" aria-label={line.needsReview ? `Linha ${sourceLine}; conferir alinhamento` : `Linha ${sourceLine}`}>
+                  {sourceLine}
+                  {line.needsReview && <span className="import-row-review">Conferir</span>}
+                </th>
                 {headers.map((_, columnIndex) => <td key={columnIndex}>{line.cells[columnIndex] ?? ''}</td>)}
+                {hasUnmappedFragments && <td>{line.unmappedFragments?.join(' · ') ?? ''}</td>}
               </tr>
             )) : (
               <tr><td colSpan={columns + 1} className="import-empty-cell">Nenhuma linha com posição espacial disponível.</td></tr>

@@ -1,0 +1,125 @@
+# Correção urgente — Parsing e alinhamento das colunas da “Separação espacial preliminar”
+
+Corrija a tabela **“Separação espacial preliminar”** no projeto atual do Classifica Militares. O problema está na identificação e separação dos campos extraídos do PDF: algumas colunas estão sendo agrupadas indevidamente, provocando o deslocamento dos dados de todas as colunas seguintes.
+
+**Não crie novas telas, abas ou funcionalidades. Corrija a implementação existente, preservando o restante do projeto.**
+
+## 1. Separar obrigatoriamente as colunas agrupadas
+
+Atualmente, o sistema está identificando incorretamente dois conjuntos de colunas:
+
+- `INSCRIÇÃO CLAS` → deve ser dividido em `INSCRIÇÃO` e `CLAS`.
+- `DT_NASC AC RV` → deve ser dividido em `DT_NASC`, `AC` e `RV`.
+
+Cada campo deve ter sua própria coluna, seu próprio cabeçalho e seu próprio valor.
+
+A estrutura esperada deve respeitar esta ordem:
+
+1. `INHA`
+2. `NOME`
+3. `INSCRIÇÃO`
+4. `CLAS`
+5. `MF`
+6. `PORT`
+7. `MAT`
+8. `ING`
+9. `RED`
+10. `DT_NASC`
+11. `AC`
+12. `RV`
+13. `CI`
+14. `CAMPO J`
+15. `CAMPO K`
+16. `CAMPO L`
+
+Os três últimos nomes são referências provisórias para os campos de status que aparecem depois de `CI`. Confira os cabeçalhos e os dados reais do PDF para identificar os nomes corretos, inclusive os campos que atualmente aparecem como `X` e `Convocado`. Não invente nomes nem altere a semântica desses campos sem verificar o documento original.
+
+Se houver outras colunas no PDF, preserve-as na posição correta.
+
+## 2. Corrigir a origem do problema no parsing
+
+Não resolva o problema apenas renomeando cabeçalhos, aplicando CSS ou dividindo visualmente uma coluna.
+
+Inspecione o código responsável por:
+- Extrair texto e coordenadas do PDF.
+- Agrupar segmentos de texto em linhas.
+- Identificar os limites das colunas.
+- Construir os registros estruturados.
+- Gerar a tabela “Separação espacial preliminar”.
+
+Corrija a lógica que está agrupando campos distintos. Utilize as coordenadas horizontais e verticais dos segmentos de texto, os cabeçalhos reais do documento e a estrutura das linhas para determinar a qual coluna cada valor pertence.
+
+A extração deve ser feita por campo, e não pela suposição de que cada linha terá sempre a mesma quantidade de fragmentos de texto.
+
+Se o PDF tiver colunas próximas, utilize os limites e as posições dos cabeçalhos para diferenciá-las. Considere também números, datas, nomes compostos, campos vazios, cabeçalhos repetidos e páginas diferentes.
+
+**Não divida os valores indiscriminadamente por espaços**, pois isso pode corromper nomes, inscrições, datas ou outros campos.
+
+## 3. Regras para cada campo
+
+- `INHA`: preservar o valor correspondente ao cabeçalho original.
+- `NOME`: manter o nome completo do candidato em um único campo.
+- `INSCRIÇÃO`: conter somente o número de inscrição, preservando zeros à esquerda quando existirem.
+- `CLAS`: conter somente o valor da classificação.
+- `MF`: conter exclusivamente a média final.
+- `PORT`, `MAT`, `ING` e `RED`: manter cada nota na coluna correspondente.
+- `DT_NASC`: conter somente a data de nascimento, preservando seu formato.
+- `AC`, `RV` e `CI`: cada campo deve ser independente e receber somente o valor correspondente no documento.
+- Campos de status, como os que aparecem como `X` e `Convocado`: identificar e manter separados conforme os cabeçalhos e a estrutura real do PDF.
+
+Não transfira um valor para outra coluna apenas porque ela está vazia. Não invente valores ausentes e não descarte registros que tenham campos vazios.
+
+## 4. Corrigir o alinhamento de toda a tabela
+
+Depois de separar os campos, confira todas as colunas seguintes. O agrupamento atual provoca deslocamentos em `MF`, `PORT`, `MAT`, `ING`, `RED`, `DT_NASC`, `AC`, `RV`, `CI` e nos campos de status.
+
+Garanta que:
+- Cada cabeçalho corresponda exatamente aos valores exibidos abaixo dele.
+- Todas as linhas utilizem a mesma estrutura lógica de colunas.
+- A ausência de um campo não desloque os valores seguintes.
+- A tabela mantenha a ordem das colunas definida pelo documento.
+- A rolagem horizontal, se necessária, não cause sobreposição ou desalinhamento visual.
+- Os registros continuem associados ao candidato correto.
+
+A tabela deve refletir os campos estruturados extraídos do PDF. Não use o texto bruto agrupado como fonte para renderizar diretamente as células.
+
+## 5. Preservar a integridade dos dados
+
+Não altere notas, classificações, inscrições, datas ou situações dos candidatos para fazer a tabela parecer alinhada.
+
+Se um valor não puder ser atribuído a uma coluna com segurança:
+- Marque o campo ou registro para conferência.
+- Preserve o conteúdo extraído para comparação com o PDF original.
+- Não descarte o registro.
+- Não preencha a lacuna com um valor presumido.
+
+Registros de candidatos excluídos ou com estrutura diferente também devem ser preservados e tratados sem deslocar as colunas dos demais candidatos.
+
+## 6. Testes obrigatórios
+
+Crie ou atualize testes que reproduzam especificamente os erros encontrados:
+
+1. `INSCRIÇÃO` e `CLAS` aparecem em colunas independentes.
+2. `DT_NASC`, `AC` e `RV` aparecem em colunas independentes.
+3. `MF`, `PORT`, `MAT`, `ING` e `RED` permanecem alinhados.
+4. `CI` e os campos de status mantêm seus valores nas colunas corretas.
+5. Datas, nomes compostos e inscrições não são corrompidos.
+6. Campos vazios não deslocam os valores seguintes.
+7. Linhas com estruturas diferentes não provocam desalinhamento global.
+8. A ordem dos cabeçalhos corresponde à ordem dos campos extraídos.
+9. A prévia continua alinhada em diferentes páginas do PDF.
+10. Os dados continuam corretos após a confirmação da importação e nas funcionalidades existentes que utilizam esses registros.
+
+Execute também os testes existentes, a verificação de tipos e a compilação de produção.
+
+## 7. Relatório final
+
+Ao terminar, informe:
+- Quais arquivos foram modificados.
+- Qual era a causa do agrupamento de `INSCRIÇÃO` com `CLAS`.
+- Qual era a causa do agrupamento de `DT_NASC` com `AC` e `RV`.
+- Como os campos passaram a ser identificados e separados.
+- Quantos testes foram executados e quantos passaram.
+- Se a correção foi validada com o PDF original ou apenas com dados sintéticos.
+
+**Critério de conclusão:** a tabela “Separação espacial preliminar” deve apresentar cada campo em sua coluna independente, com todos os valores alinhados aos cabeçalhos corretos, sem deslocamentos causados por colunas agrupadas.

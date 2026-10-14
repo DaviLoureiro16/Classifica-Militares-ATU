@@ -341,6 +341,7 @@
 .import-data-table th,.import-data-table td { max-width:320px; padding:8px 10px; border-bottom:1px solid #edf0f3; border-right:1px solid #edf0f3; color:#43586a; font-size:10px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; vertical-align:top; }
 .import-data-table thead th { position:sticky; top:0; z-index:1; background:#f3f6f8; color:#627587; font-size:9px; font-weight:700; text-transform:uppercase; }
 .import-data-table tbody th { background:#f8fafb; color:#81909d; font-weight:600; min-width:48px; }
+.import-row-review { display:block; margin-top:3px; color:#87682b; font-size:8px; font-weight:700; white-space:nowrap; }
 .import-data-table tr:last-child th,.import-data-table tr:last-child td { border-bottom:0; }
 .import-data-table tr:hover td { background:#fafcfd; }
 .import-empty-cell { color:#8995a0!important; text-align:center; }
