@@ -16,7 +16,7 @@ function getQualityCopy(level: PdfQualityLevel): { title: string; message: strin
   if (level === 'caution') {
     return {
       title: 'Confira a quantidade de campos',
-      message: 'A quantidade de campos varia entre algumas linhas. Confira o original; nenhuma linha foi removida. Prefira a planilha original (XLS/XLSX), se houver.',
+      message: 'A quantidade de campos varia entre algumas linhas ou há páginas com um esquema diferente. O conteúdo foi mantido para conferência; prefira a planilha original (XLS/XLSX), se houver.',
     };
   }
   if (level === 'insufficient') {
@@ -77,7 +77,7 @@ export function PdfQualityNotice({ quality, documentId }: { quality: PdfQualityR
 export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; testId: string }) {
   const headerLineIndex = lines.findIndex((line) => line.kind === 'table-header' || line.isHeader === true);
   const headerLine = headerLineIndex >= 0 ? lines[headerLineIndex] : undefined;
-  const schemaHeaders = headerLine
+  const schemaHeaders = headerLine && headerLine.kind !== 'unmapped-header'
     ? MILITARY_RESULT_COLUMNS
       .map((column, index) => ({ ...column, label: headerLine.cells[index]?.trim() }))
       .filter((column) => Boolean(column.label))
@@ -86,7 +86,7 @@ export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; test
   const dataLines = lines
     .map((line, index) => ({ line, sourceLine: index + 1 }))
     .filter(({ line }, index) => {
-      if (index === headerLineIndex || line.kind === 'metadata' || line.kind === 'table-header') return false;
+      if (index === headerLineIndex || line.isHeader || line.kind === 'metadata' || line.kind === 'table-header') return false;
       if (line.kind) return line.kind === 'candidate' || line.kind === 'unmapped';
       return true;
     });
@@ -103,7 +103,7 @@ export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; test
         <span>
           {hasStructuredSchema
             ? `${dataLines.filter(({ line }) => line.kind === 'candidate' || line.record).length} registro(s) · ${schemaHeaders.length} campo(s) reconhecidos no cabeçalho`
-            : `${dataLines.length} linha(s) preservadas para conferência · cabeçalho tabular não identificado`}
+            : `${dataLines.length} linha(s) preservadas para conferência · ${headerLine?.kind === 'unmapped-header' ? 'esquema diferente não associado' : 'cabeçalho tabular não identificado'}`}
         </span>
       </div>
       <div className="import-table-wrap">
@@ -139,7 +139,9 @@ export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; test
                 <td colSpan={visibleColumnCount + 1} className="import-empty-cell">
                   {hasStructuredSchema
                     ? 'Nenhum registro de candidato foi associado ao cabeçalho reconhecido.'
-                    : 'Não foi reconhecido um cabeçalho tabular. O texto extraído foi mantido para conferência.'}
+                    : headerLine?.kind === 'unmapped-header'
+                      ? 'O cabeçalho tem um esquema diferente. O texto extraído foi mantido sem mapeamento para conferência.'
+                      : 'Não foi reconhecido um cabeçalho tabular. O texto extraído foi mantido para conferência.'}
                 </td>
               </tr>
             )}

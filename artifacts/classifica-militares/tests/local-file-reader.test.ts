@@ -217,6 +217,35 @@ function makeCpcarResultPage(records: string[][], includeHeader = true, title = 
   return items;
 }
 
+function makeLeftAlignedNameCpcarPage(records: string[][], wrappedName?: string[]) {
+  const headerXs = [120, 241, 293, 328, 361, 399, 438, 473, 508, 561, 589, 648];
+  const rowXs = [31, 249, 296, 325, 360, 397, 434, 471, 508, 566, 589, 640];
+  const items: Array<{ text: string; x: number; y: number }> = [];
+  CPCAR_COLUMNS.forEach((text, index) => items.push({
+    text: text === 'Inscrição' ? 'Inscricao' : text,
+    x: headerXs[index],
+    y: 165,
+  }));
+  records.forEach((record, rowIndex) => {
+    const y = 145 - rowIndex * 18;
+    record.forEach((text, index) => {
+      if (text === '' || (index === 0 && wrappedName)) return;
+      items.push({
+        text,
+        x: rowXs[index],
+        y: index === 0 ? y + 1.5 : y,
+      });
+    });
+    if (rowIndex === 0 && wrappedName) {
+      items.push(
+        { text: wrappedName[0], x: rowXs[0], y: y + 1.5 },
+        { text: wrappedName[1], x: rowXs[0], y: y - 7 },
+      );
+    }
+  });
+  return items;
+}
+
 const CPCAR_REFERENCE_RECORDS = [
   [
     'ADAM QUINTANILHA DA SILVA', '2030008', '1040', '6.0812', '5.0000', '6.2500',
@@ -300,6 +329,38 @@ test('PDF EA CPCAR mantém inscrição, classificação, notas, data e status em
   assert.equal(records[3]?.mf, '7.6625');
   assert.equal(records[3]?.dtNasc, '18/02/2008');
   assert.equal(result.quality.level, 'consistent');
+});
+
+test('PDF vincula nomes afastados do cabeçalho aos dados da mesma linha vertical', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([makeLeftAlignedNameCpcarPage(CPCAR_REFERENCE_RECORDS)]),
+    pdfjs,
+  );
+  const candidates = result.pages[0].lines.filter((line) => line.kind === 'candidate');
+
+  assert.deepEqual(candidates.map((line) => line.record?.nome), CPCAR_REFERENCE_RECORDS.map(([name]) => name));
+  assert.deepEqual(candidates.map((line) => line.record?.inscricao), ['2030008', '2120002', '2060002', '2030013']);
+  assert.deepEqual(candidates.map((line) => line.record?.clas), ['1040', '211', '507', '141']);
+  assert.deepEqual(candidates.map((line) => line.record?.mf), ['6.0812', '7.4625', '7.0125', '7.6625']);
+  assert.equal(new Set(candidates.map((line) => line.record?.nome)).size, candidates.length);
+  assert.equal(candidates.every((line) => !line.needsReview), true);
+});
+
+test('PDF reúne nome quebrado em linha visual próxima somente quando o Y identifica uma linha única', async () => {
+  const record = [...CPCAR_REFERENCE_RECORDS[3]];
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([
+      makeLeftAlignedNameCpcarPage([record], ['ADRIANO HENRIQUE', 'DO NASCIMENTO CARVALHO']),
+    ]),
+    pdfjs,
+  );
+  const candidates = result.pages[0].lines.filter((line) => line.kind === 'candidate');
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].record?.nome, 'ADRIANO HENRIQUE DO NASCIMENTO CARVALHO');
+  assert.equal(candidates[0].record?.inscricao, '2030013');
+  assert.equal(candidates[0].record?.clas, '141');
+  assert.equal(result.pages[0].lines.some((line) => line.text === 'DO NASCIMENTO CARVALHO'), false);
 });
 
 test('PDF recupera Clas deslocada uma coluna sem confundir inscrição ou média final', async () => {

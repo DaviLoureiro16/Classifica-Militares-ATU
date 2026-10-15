@@ -1,0 +1,40 @@
+## CORREÇÃO PONTUAL — VINCULAR NOMES AOS DADOS DA TABELA
+
+A separação dos dados do PDF em tabela já foi realizada. Entretanto, os nomes dos candidatos continuam separados, sendo apresentados individualmente com a indicação da linha em que aparecem.
+
+Quero que você corrija especificamente esse problema, preservando tudo o que já funciona.
+
+### Objetivo
+
+Associar cada nome de candidato à respectiva linha da tabela, preenchendo corretamente a coluna `Nome` e mantendo os demais campos na mesma linha do candidato correspondente.
+
+### Requisitos
+
+1. Inspecione a implementação atual e identifique como os nomes são extraídos e como as linhas da tabela são reconstruídas.
+2. Aproveite os dados espaciais já extraídos pelo PDF.js. Não refaça toda a importação se a estrutura existente puder ser corrigida pontualmente.
+3. Utilize a posição vertical (coordenada Y) dos nomes para associá-los à linha correspondente da tabela.
+4. Considere pequenas diferenças de alinhamento, espaçamento e quebra de linha entre o nome e os demais campos.
+5. Preserve nomes completos, inclusive aqueles com vários sobrenomes. Não divida um nome em vários candidatos.
+6. Se um nome ocupar mais de uma linha visual no PDF, verifique se essas partes pertencem ao mesmo candidato antes de criar um novo registro.
+7. Mantenha a associação correta entre nome, inscrição, classificação, média final, notas, data de nascimento, indicadores e situação do candidato.
+8. Não associe nomes a candidatos apenas pela ordem em que aparecem se as coordenadas espaciais permitirem uma associação mais confiável.
+9. Não exclua candidatos, não invente valores e não desloque dados de uma coluna para outra.
+10. Preserve a estrutura da tabela, a interface, as rotas e as funcionalidades existentes.
+
+### Validação
+
+Confira, quando esses registros estiverem presentes no PDF original, se os seguintes candidatos aparecem com seus respectivos dados:
+
+- ADAM QUINTANILHA DA SILVA — inscrição `2030008`, classificação `1040`, MF `6.0812`, nascimento `19/06/2008`.
+- ADLA DE ANDRADE SALES — inscrição `2120002`, classificação `211`, MF `7.4625`, nascimento `18/11/2009`.
+- ADRIAN CARVALHO DESVARS ARAUJO — inscrição `2060002`, classificação `507`, MF `7.0125`, nascimento `23/12/2010`.
+- ADRIANO HENRIQUE DO NASCIMENTO CARVALHO — inscrição `2030013`, classificação `141`, MF `7.6625`, nascimento `18/02/2008`.
+
+### Testes finais
+
+- Verifique se cada nome aparece na mesma linha dos dados correspondentes.
+- Confirme que não há nomes duplicados, candidatos sem nome por falha de associação ou nomes vinculados ao registro errado.
+- Execute os testes existentes, a verificação de tipos e a compilação de produção.
+- Informe quais arquivos foram alterados e se a validação foi realizada com o PDF oficial real.
+
+**Importante:** faça uma correção pontual na associação dos nomes às linhas. Não reinicie a tarefa, não refaça a tabela inteira e não altere funcionalidades que já estão funcionando.

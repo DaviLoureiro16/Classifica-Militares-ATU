@@ -13,6 +13,7 @@ REFERENCES = [
     "ADRIAN CARVALHO DESVARS ARAUJO",
     "ADRIANO HENRIQUE DO NASCIMENTO CARVALHO",
 ]
+REVIEW_PAGES = {55, 56, 57}
 
 
 def normalized(text: str) -> str:
@@ -57,7 +58,7 @@ for page_index in range(document.page_count):
                 page_references.append((reference, row_index, row))
                 found.add(reference)
 
-    if not page_references:
+    if not page_references and page_index + 1 not in REVIEW_PAGES:
         continue
 
     print(f"\nPÁGINA {page_index + 1} — dimensão {page.rect.width:.1f} x {page.rect.height:.1f} pt")

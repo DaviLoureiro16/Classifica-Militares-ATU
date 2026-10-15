@@ -7,11 +7,14 @@ export interface PdfPageText {
 export interface PdfTextLine {
   text: string;
   cells: string[];
+  x?: number;
+  y?: number;
+  fontSize?: number;
   isHeader?: boolean;
   isStructured?: boolean;
   needsReview?: boolean;
   unmappedFragments?: string[];
-  kind?: 'metadata' | 'table-header' | 'candidate' | 'unmapped';
+  kind?: 'metadata' | 'table-header' | 'unmapped-header' | 'candidate' | 'unmapped';
   record?: MilitaryCandidateRecord;
 }
 
@@ -188,11 +191,18 @@ function matchesForGroup(group: { items: PositionedTextItem[] }): SchemaHeaderMa
 }
 
 function isCandidateHeader(group: { items: PositionedTextItem[] }): boolean {
-  const indexes = new Set(matchesForGroup(group).map((match) => match.index));
+  const matches = matchesForGroup(group);
+  const indexes = new Set(matches.map((match) => match.index));
+  const hasUniqueHeadings = matches.length === indexes.size;
   const hasCoreFields = [0, 1, 2, 3].every((index) => indexes.has(index));
   const hasEnoughKnownFields = indexes.size >= 8;
   const hasTableSpecificField = indexes.has(8) || indexes.has(11);
-  return hasCoreFields && hasEnoughKnownFields && hasTableSpecificField;
+  return hasUniqueHeadings && hasCoreFields && hasEnoughKnownFields && hasTableSpecificField;
+}
+
+function isIncompatibleTableHeader(group: { items: PositionedTextItem[] }): boolean {
+  const indexes = new Set(matchesForGroup(group).map((match) => match.index));
+  return indexes.has(0) && indexes.has(1) && indexes.size >= 5;
 }
 
 function makeTableLayout(
@@ -374,7 +384,9 @@ function isInstitutionalMetadata(text: string): boolean {
     'exame de admissao ao curso preparatorio',
     'resultado final nas provas escritas',
     'ampla concorrencia',
+    'reserva de vagas',
     'concentracao intermediaria',
+    'candidatos excluidos',
     'data:',
   ].some((phrase) => normalized.includes(phrase));
 }
@@ -383,6 +395,71 @@ function makeEmptyRecord(): MilitaryCandidateRecord {
   return Object.fromEntries(
     MILITARY_RESULT_COLUMNS.map(({ key }) => [key, '']),
   ) as MilitaryCandidateRecord;
+}
+
+function associateNearbyNameFragments(lines: PdfTextLine[], layout: PdfTableLayout): void {
+  const firstColumnX = layout.positions[0];
+  const registrationColumnX = layout.positions[1];
+  if (firstColumnX === null || firstColumnX === undefined
+    || registrationColumnX === null || registrationColumnX === undefined) return;
+
+  const nameBoundary = (firstColumnX + registrationColumnX) / 2;
+  const candidates = lines.filter((line) => {
+    const record = line.record;
+    return line.kind === 'candidate'
+      && line.y !== undefined
+      && record !== undefined
+      && /^\d{6,}$/.test(record.inscricao.replace(/\s+/g, ''))
+      && Boolean(record.clas || record.mf);
+  });
+  const claimedLines = new Set<PdfTextLine>();
+
+  for (const fragmentLine of lines) {
+    const fragment = fragmentLine.text.trim();
+    if (
+      fragmentLine.kind !== 'unmapped'
+      || fragmentLine.y === undefined
+      || fragmentLine.x === undefined
+      || fragmentLine.x >= nameBoundary
+      || !/^[\p{L}\s.'’-]{3,}$/u.test(fragment)
+    ) continue;
+
+    const fontSize = fragmentLine.fontSize ?? 10;
+    const maxDistance = Math.max(4, Math.min(14, fontSize * 1.35));
+    const nearest = candidates
+      .map((line) => ({
+        line,
+        distance: Math.abs((line.y ?? 0) - fragmentLine.y!),
+      }))
+      .sort((left, right) => left.distance - right.distance);
+    const closest = nearest[0];
+    const nextClosest = nearest[1];
+    if (!closest || closest.distance > maxDistance) continue;
+    if (
+      nextClosest
+      && nextClosest.distance - closest.distance < Math.max(2, fontSize * 0.2)
+    ) continue;
+
+    const record = closest.line.record!;
+    const existingName = record.nome.trim();
+    const normalizedFragment = normalizeText(fragment);
+    if (normalizeText(existingName).includes(normalizedFragment)) {
+      claimedLines.add(fragmentLine);
+      continue;
+    }
+    record.nome = existingName
+      ? (fragmentLine.y > closest.line.y! ? `${fragment} ${existingName}` : `${existingName} ${fragment}`)
+      : fragment;
+    closest.line.cells[0] = record.nome;
+    closest.line.text = `${closest.line.text} ${fragment}`.trim();
+    claimedLines.add(fragmentLine);
+  }
+
+  if (claimedLines.size > 0) {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      if (claimedLines.has(lines[index])) lines.splice(index, 1);
+    }
+  }
 }
 
 function makePdfLines(
@@ -409,6 +486,9 @@ function makePdfLines(
       lines.push({
         text: rawText,
         cells,
+        x: rowItems[0]?.x,
+        y: group.y,
+        fontSize: Math.max(...rowItems.map((item) => item.fontSize)),
         isHeader: true,
         isStructured: true,
         kind: 'table-header',
@@ -416,8 +496,33 @@ function makePdfLines(
       continue;
     }
 
+    if (isIncompatibleTableHeader(group)) {
+      layout = undefined;
+      tableStarted = false;
+      lines.push({
+        text: rawText,
+        cells: [],
+        x: rowItems[0]?.x,
+        y: group.y,
+        fontSize: Math.max(...rowItems.map((item) => item.fontSize)),
+        isHeader: true,
+        isStructured: false,
+        needsReview: true,
+        kind: 'unmapped-header',
+      });
+      continue;
+    }
+
     if (isInstitutionalMetadata(rawText)) {
-      lines.push({ text: rawText, cells: [rawText], isStructured: false, kind: 'metadata' });
+      lines.push({
+        text: rawText,
+        cells: [rawText],
+        x: rowItems[0]?.x,
+        y: group.y,
+        fontSize: Math.max(...rowItems.map((item) => item.fontSize)),
+        isStructured: false,
+        kind: 'metadata',
+      });
       continue;
     }
 
@@ -425,6 +530,9 @@ function makePdfLines(
       lines.push({
         text: rawText,
         cells: [rawText],
+        x: rowItems[0]?.x,
+        y: group.y,
+        fontSize: Math.max(...rowItems.map((item) => item.fontSize)),
         isStructured: false,
         kind: 'unmapped',
         needsReview: true,
@@ -435,13 +543,30 @@ function makePdfLines(
 
     const cells = Array.from({ length: MILITARY_RESULT_COLUMNS.length }, () => '');
     const unmappedFragments: string[] = [];
+    const unassignedNameFragments: string[] = [];
+    const nameRegionBoundary = layout.positions[0] !== null && layout.positions[1] !== null
+      ? (layout.positions[0]! + layout.positions[1]!) / 2
+      : null;
     let needsReview = !layout.complete || !layout.ordered;
 
     for (const item of rowItems) {
       const assignment = findColumnAssignment(item.x, item.fontSize, layout);
       if (!assignment) {
-        unmappedFragments.push(item.text.trim());
-        needsReview = true;
+        const value = item.text.trim();
+        if (
+          nameRegionBoundary !== null
+          && item.x < nameRegionBoundary
+          && /^[\p{L}\s.'’-]+$/u.test(value)
+          && value.length > 1
+        ) {
+          // The candidate name can begin well before the centered "Nome"
+          // header. It remains in this Y-group until the rest of the row is
+          // mapped, so only attach it when the same visual line has data.
+          unassignedNameFragments.push(value);
+        } else {
+          unmappedFragments.push(value);
+          needsReview = true;
+        }
         continue;
       }
       if (!assignment.aligned) needsReview = true;
@@ -492,12 +617,17 @@ function makePdfLines(
       cells[destination] = [cells[destination], value].filter(Boolean).join(' ');
     }
 
+    if (!cells[0].trim() && cells.slice(1).some((cell) => cell.trim()) && unassignedNameFragments.length) {
+      cells[0] = unassignedNameFragments.join(' ').replace(/\s+/g, ' ').trim();
+    }
+
     const populatedCount = cells.filter((cell) => cell.trim()).length;
     const hasCandidateName = /^[\p{L}\s.'’-]{3,}$/u.test(cells[0].trim());
     const hasCandidateContent = populatedCount >= 2 || hasCandidateName;
     const kind: PdfTextLine['kind'] = hasCandidateContent ? 'candidate' : 'unmapped';
     const missingRequiredFields = REQUIRED_RESULT_COLUMN_INDEXES.some((index) => !cells[index].trim());
     if (hasCandidateContent && missingRequiredFields) needsReview = true;
+    if (kind === 'unmapped') unmappedFragments.push(...unassignedNameFragments);
     const record = makeEmptyRecord();
     MILITARY_RESULT_COLUMNS.forEach(({ key }, index) => { record[key] = cells[index]; });
 
@@ -505,12 +635,17 @@ function makePdfLines(
       text: rawText,
       cells,
       record,
+      x: rowItems[0]?.x,
+      y: group.y,
+      fontSize: Math.max(...rowItems.map((item) => item.fontSize)),
       kind,
       isStructured: populatedCount >= 2,
       ...(needsReview ? { needsReview: true } : {}),
       ...(unmappedFragments.length > 0 ? { unmappedFragments } : {}),
     });
   }
+
+  if (layout) associateNearbyNameFragments(lines, layout);
 
   if (unpositioned.length > 0) {
     for (const text of unpositioned) {
@@ -539,6 +674,7 @@ export function assessPdfQuality(
   const pageTextCoverage = pageCount > 0 ? textPages / pageCount : 0;
   const allLines = pages.flatMap((page) => page.lines);
   const headers = allLines.filter((line) => line.kind === 'table-header' || line.isHeader === true);
+  const incompatibleHeaders = allLines.filter((line) => line.kind === 'unmapped-header').length;
   const dataLines = allLines.filter((line) => line.kind === 'candidate');
   const expectedFields = headers.length
     ? Math.max(...headers.map((line) => line.cells.filter(Boolean).length))
@@ -569,6 +705,9 @@ export function assessPdfQuality(
       reasons.push(`Há página(s) sem texto selecionável: ${pagesWithoutText.join(', ')}.`);
     }
     if (headers.length === 0) reasons.push('Não foi reconhecido o cabeçalho real da tabela de resultados.');
+    if (incompatibleHeaders > 0) {
+      reasons.push(`${incompatibleHeaders} cabeçalho(s) têm um esquema diferente; as linhas foram preservadas sem forçar o mapeamento.`);
+    }
     if (dataLines.length < 3) reasons.push('Há poucas linhas de candidatos com separação espacial para comparar.');
     if (incompleteLines > 0) {
       reasons.push(`${incompleteLines} linha(s) têm campos essenciais vazios; foram mantidas para conferência.`);
@@ -584,7 +723,7 @@ export function assessPdfQuality(
       || needsReviewLines > 0
       || (dataLines.length >= 3 && (fieldCountConsistency ?? 0) < 0.85)
     );
-    if (pagesWithoutText.length > 0 || layoutLooksInconsistent) {
+    if (pagesWithoutText.length > 0 || incompatibleHeaders > 0 || layoutLooksInconsistent) {
       level = 'caution';
     } else if (headers.length > 0 && dataLines.length >= 3 && (fieldCountConsistency ?? 0) >= 0.85) {
       level = 'consistent';
