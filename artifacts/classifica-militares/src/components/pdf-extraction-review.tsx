@@ -1,5 +1,10 @@
 import { AlertTriangle } from 'lucide-react';
-import type { PdfQualityLevel, PdfQualityReport, PdfTextLine } from '@/lib/local-file-reader';
+import {
+  MILITARY_RESULT_COLUMNS,
+  type PdfQualityLevel,
+  type PdfQualityReport,
+  type PdfTextLine,
+} from '@/lib/local-file-reader';
 
 function getQualityCopy(level: PdfQualityLevel): { title: string; message: string } {
   if (level === 'consistent') {
@@ -70,48 +75,45 @@ export function PdfQualityNotice({ quality, documentId }: { quality: PdfQualityR
 }
 
 export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; testId: string }) {
-  const findHeaderLine = (line: PdfTextLine): boolean => {
-    if (line.cells.length < 2) return false;
-    const value = line.cells.join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const categories = [
-      /\b(nome|candidato|candidata)\b/,
-      /\b(inscri\w*|matricul\w*|codigo)\b/,
-      /\b(classific\w*|clas|posic\w*|situac\w*)\b/,
-      /\b(mf|media|nota|pontos|gp|gm|gi|gr)\b/,
-    ].filter((pattern) => pattern.test(value)).length;
-    return line.isHeader === true || categories >= 2;
-  };
-  const headerLineIndex = lines.findIndex(findHeaderLine);
+  const headerLineIndex = lines.findIndex((line) => line.kind === 'table-header' || line.isHeader === true);
   const headerLine = headerLineIndex >= 0 ? lines[headerLineIndex] : undefined;
+  const schemaHeaders = headerLine
+    ? MILITARY_RESULT_COLUMNS
+      .map((column, index) => ({ ...column, label: headerLine.cells[index]?.trim() }))
+      .filter((column) => Boolean(column.label))
+    : [];
+  const hasStructuredSchema = schemaHeaders.length > 0;
   const dataLines = lines
     .map((line, index) => ({ line, sourceLine: index + 1 }))
-    .filter((_, index) => index !== headerLineIndex);
+    .filter(({ line }, index) => {
+      if (index === headerLineIndex || line.kind === 'metadata' || line.kind === 'table-header') return false;
+      if (line.kind) return line.kind === 'candidate' || line.kind === 'unmapped';
+      return true;
+    });
   const visibleLines = dataLines.slice(0, 50);
-  const schemaColumns = Math.max(
-    1,
-    headerLine?.cells.length ?? 0,
-    dataLines.reduce((largest, item) => Math.max(largest, item.line.cells.length), 0),
-  );
-  const hasUnmappedFragments = lines.some((line) => (line.unmappedFragments?.length ?? 0) > 0);
-  const columns = schemaColumns + (hasUnmappedFragments ? 1 : 0);
-  const headers = Array.from(
-    { length: schemaColumns },
-    (_, index) => headerLine?.cells[index]?.trim() || 'Cabeçalho não identificado',
-  );
+  const unmappedLines = lines
+    .map((line, index) => ({ line, sourceLine: index + 1 }))
+    .filter(({ line }) => Boolean(line.unmappedFragments?.length));
+  const visibleColumnCount = hasStructuredSchema ? schemaHeaders.length : 2;
 
   return (
     <div className="import-pdf-layout" data-testid={`pdf-layout-${testId}`}>
       <div className="import-sheet-summary">
         <strong>Separação espacial preliminar</strong>
-        <span>{lines.length} linha(s) · até {columns} campo(s) identificados por posição</span>
+        <span>
+          {hasStructuredSchema
+            ? `${dataLines.filter(({ line }) => line.kind === 'candidate' || line.record).length} registro(s) · ${schemaHeaders.length} campo(s) reconhecidos no cabeçalho`
+            : `${dataLines.length} linha(s) preservadas para conferência · cabeçalho tabular não identificado`}
+        </span>
       </div>
       <div className="import-table-wrap">
         <table className="import-data-table" data-testid={`table-pdf-layout-${testId}`}>
           <thead>
             <tr>
               <th scope="col">Linha</th>
-              {headers.map((header, index) => <th scope="col" key={`${index}-${header}`}>{header}</th>)}
-              {hasUnmappedFragments && <th scope="col">Trecho sem posição segura</th>}
+              {hasStructuredSchema
+                ? schemaHeaders.map((column) => <th scope="col" key={column.key}>{column.label}</th>)
+                : <th scope="col">Texto extraído para conferência</th>}
             </tr>
           </thead>
           <tbody>
@@ -121,16 +123,39 @@ export function PdfLayoutPreview({ lines, testId }: { lines: PdfTextLine[]; test
                   {sourceLine}
                   {line.needsReview && <span className="import-row-review">Conferir</span>}
                 </th>
-                {headers.map((_, columnIndex) => <td key={columnIndex}>{line.cells[columnIndex] ?? ''}</td>)}
-                {hasUnmappedFragments && <td>{line.unmappedFragments?.join(' · ') ?? ''}</td>}
+                {hasStructuredSchema
+                  ? schemaHeaders.map((column) => {
+                    const columnIndex = MILITARY_RESULT_COLUMNS.findIndex(({ key }) => key === column.key);
+                    return (
+                      <td key={column.key}>
+                        {line.record?.[column.key] ?? line.cells[columnIndex] ?? ''}
+                      </td>
+                    );
+                  })
+                  : <td>{line.unmappedFragments?.join(' · ') || line.text}</td>}
               </tr>
             )) : (
-              <tr><td colSpan={columns + 1} className="import-empty-cell">Nenhuma linha com posição espacial disponível.</td></tr>
+              <tr>
+                <td colSpan={visibleColumnCount + 1} className="import-empty-cell">
+                  {hasStructuredSchema
+                    ? 'Nenhum registro de candidato foi associado ao cabeçalho reconhecido.'
+                    : 'Não foi reconhecido um cabeçalho tabular. O texto extraído foi mantido para conferência.'}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
-      {lines.length > visibleLines.length && (
+      {unmappedLines.length > 0 && (
+        <ul className="import-pdf-quality-reasons" aria-label="Trechos sem posição segura">
+          {unmappedLines.slice(0, 20).map(({ line, sourceLine }) => (
+            <li key={sourceLine}>
+              Linha {sourceLine}: {line.unmappedFragments?.join(' · ')}
+            </li>
+          ))}
+        </ul>
+      )}
+      {dataLines.length > visibleLines.length && (
         <p className="import-source-note">Exibindo as primeiras {visibleLines.length} linhas desta página. O texto extraído completo permanece disponível abaixo.</p>
       )}
     </div>

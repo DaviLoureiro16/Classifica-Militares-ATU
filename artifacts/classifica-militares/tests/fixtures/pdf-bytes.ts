@@ -39,7 +39,7 @@ function buildPdf(pages: Array<FictionalPdfTextItem[]>): Uint8Array {
       .map((item) => `BT /F1 10 Tf ${item.x} ${item.y} Td (${escapePdfText(item.text)}) Tj ET`)
       .join('\n');
     objects[pageObjectId - 1] = [
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 200]',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 900 220]',
       '/Resources << /Font << /F1 3 0 R >> >>',
       `/Contents ${contentObjectId} 0 R >>`,
     ].join(' ');

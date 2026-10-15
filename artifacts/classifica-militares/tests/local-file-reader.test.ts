@@ -185,132 +185,187 @@ test('PDF fictício extrai texto na ordem das páginas', async () => {
   assert.deepEqual(messages, ['PDF: lendo página 1 de 2', 'PDF: lendo página 2 de 2']);
 });
 
-function makeFictionalTablePage(
-  names: string[],
-  includeHeader = true,
-  shiftedRow = -1,
-  incompleteRow = -1,
-) {
+const CPCAR_COLUMNS = [
+  'Nome', 'Inscrição', 'Clas', 'MF', 'Port', 'Mat', 'Ing', 'Red',
+  'Dt_nasc', 'AC', 'RV', 'CI',
+];
+const CPCAR_COLUMN_X = [20, 180, 270, 320, 370, 420, 470, 520, 570, 635, 690, 750];
+
+function makeCpcarResultPage(records: string[][], includeHeader = true, title = false) {
   const items: Array<{ text: string; x: number; y: number }> = [];
-  if (includeHeader) {
+  if (title) {
     items.push(
-      { text: 'Nome', x: 20, y: 175 },
-      { text: 'Inscricao', x: 220, y: 175 },
-      { text: 'Nota', x: 360, y: 175 },
+      { text: 'DIRETORIA DE ENSINO', x: 20, y: 196 },
+      { text: 'SISTEMA INTEGRADO DE GESTAO E CONTROLE', x: 20, y: 188 },
+      { text: 'EA CPCAR 2026', x: 20, y: 180 },
+      { text: 'AMPLA CONCORRENCIA', x: 20, y: 174 },
     );
   }
-  names.forEach((name, index) => {
-    const y = 150 - index * 20;
-    items.push({ text: name, x: 20, y }, { text: `000${index + 101}`, x: 220, y });
-    if (index !== incompleteRow) items.push({ text: `${8 + index},5`, x: 360, y });
-    if (index === shiftedRow) items.push({ text: 'APTO fictício', x: 470, y });
+  if (includeHeader) {
+    CPCAR_COLUMNS.forEach((text, index) => items.push({
+      text: text === 'Inscrição' ? 'Inscricao' : text,
+      x: CPCAR_COLUMN_X[index],
+      y: 165,
+    }));
+  }
+  records.forEach((record, rowIndex) => {
+    const y = 145 - rowIndex * 18;
+    record.forEach((text, index) => {
+      if (text !== '') items.push({ text, x: CPCAR_COLUMN_X[index], y });
+    });
   });
   return items;
 }
 
-test('PDF fictício com tabela alinhada recebe diagnóstico preliminar consistente', async () => {
+const CPCAR_REFERENCE_RECORDS = [
+  [
+    'ADAM QUINTANILHA DA SILVA', '2030008', '1040', '6.0812', '5.0000', '6.2500',
+    '6.8750', '6.2000', '19/06/2008', 'X', '', 'Convocado',
+  ],
+  [
+    'ADLA DE ANDRADE SALES', '2120002', '211', '7.4625', '6.2500', '6.8750',
+    '8.1250', '8.6000', '18/11/2009', 'X', 'X', 'Convocado',
+  ],
+  [
+    'ADRIAN CARVALHO DESVARS ARAUJO', '2060002', '507', '7.0125', '5.6250', '5.0000',
+    '8.1250', '9.3000', '23/12/2010', 'X', 'X', 'Convocado',
+  ],
+  [
+    'ADRIANO HENRIQUE DO NASCIMENTO CARVALHO', '2030013', '141', '7.6625', '7.5000',
+    '5.6250', '8.1250', '9.4000', '18/02/2008', 'X', '', 'Convocado',
+  ],
+];
+
+test('PDF EA CPCAR reconhece os 12 cabeçalhos reais e ignora títulos institucionais', async () => {
   const result = await extractPdfPages(
-    makeFictionalLayoutPdf([makeFictionalTablePage([
-      'Ana Candidata Fictícia',
-      'Bruno Candidato Fictício',
-      'Carla Candidata Fictícia',
-    ])]),
+    makeFictionalLayoutPdf([makeCpcarResultPage(CPCAR_REFERENCE_RECORDS, true, true)]),
     pdfjs,
   );
-
-  assert.equal(result.quality.level, 'consistent');
-  assert.equal(result.quality.recognizedHeader, true);
-  assert.equal(result.quality.structuredRows, 3);
-  assert.equal(result.quality.expectedFields, 3);
-  assert.equal(result.quality.fieldCountConsistency, 1);
-  assert.equal(result.quality.incompleteLines, 0);
-  assert.equal(result.quality.possibleShiftedLines, 0);
-  assert.deepEqual(result.pages[0].lines[0].cells, ['Nome', 'Inscricao', 'Nota']);
-});
-
-test('PDF compacto usa alinhamento do cabeçalho para separar inscrição, classificação, MF e notas', async () => {
-  const items: Array<{ text: string; x: number; y: number }> = [
-    { text: 'Nome', x: 20, y: 175 },
-    { text: 'Inscricao', x: 50, y: 175 },
-    { text: 'Classificacao', x: 94, y: 175 },
-    { text: 'MF', x: 152, y: 175 },
-    { text: 'Nota', x: 172, y: 175 },
-  ];
-  const rows = [
-    { y: 150, name: 'Ana Candidata Ficticia', fields: ['000101', '01', '7,5000', '8,2500'] },
-    { y: 130, name: 'Bruno Candidato Ficticio', fields: ['000102', '02', '8,2500', '8,7500'] },
-    { y: 110, name: 'Carla Candidata Ficticia', fields: ['000103', '03', '9,0000', '9,2500'] },
-    { y: 90, name: 'Diego Candidato Excluido', fields: ['000104', 'EXCLUIDO'] },
-  ];
-  for (const row of rows) {
-    items.push({ text: row.name, x: 20, y: row.y });
-    const starts = [50, 94, 152, 172];
-    row.fields.forEach((text, index) => items.push({ text, x: starts[index], y: row.y }));
-  }
-
-  const result = await extractPdfPages(makeFictionalLayoutPdf([items]), pdfjs);
   const lines = result.pages[0].lines;
+  const header = lines.find((line) => line.kind === 'table-header');
 
-  assert.deepEqual(lines[0].cells, ['Nome', 'Inscricao', 'Classificacao', 'MF', 'Nota']);
-  assert.deepEqual(lines[1].cells, ['Ana Candidata Ficticia', '000101', '01', '7,5000', '8,2500']);
-  assert.deepEqual(lines[2].cells, ['Bruno Candidato Ficticio', '000102', '02', '8,2500', '8,7500']);
-  assert.deepEqual(lines[4].cells, ['Diego Candidato Excluido', '000104', 'EXCLUIDO']);
-  assert.equal(lines.length, 5);
-  assert.equal(result.quality.incompleteLines, 1);
+  assert.ok(header);
+  assert.deepEqual(header.cells, CPCAR_COLUMNS);
+  assert.equal(header.cells.includes('INHA'), false);
+  assert.equal(lines.filter((line) => line.kind === 'metadata').length, 4);
+  assert.equal(result.quality.expectedFields, 12);
+  assert.equal(result.quality.structuredRows, 4);
 });
 
-test('PDF fictício multipágina exclui cabeçalhos repetidos das linhas de dados', async () => {
+test('PDF EA CPCAR mantém inscrição, classificação, notas, data e status em campos independentes', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([makeCpcarResultPage(CPCAR_REFERENCE_RECORDS)]),
+    pdfjs,
+  );
+  const records = result.pages[0].lines
+    .filter((line) => line.kind === 'candidate')
+    .map((line) => line.record);
+
+  assert.deepEqual(records[0], {
+    nome: 'ADAM QUINTANILHA DA SILVA',
+    inscricao: '2030008',
+    clas: '1040',
+    mf: '6.0812',
+    port: '5.0000',
+    mat: '6.2500',
+    ing: '6.8750',
+    red: '6.2000',
+    dtNasc: '19/06/2008',
+    ac: 'X',
+    rv: '',
+    ci: 'Convocado',
+  });
+  assert.deepEqual(records[1], {
+    nome: 'ADLA DE ANDRADE SALES',
+    inscricao: '2120002',
+    clas: '211',
+    mf: '7.4625',
+    port: '6.2500',
+    mat: '6.8750',
+    ing: '8.1250',
+    red: '8.6000',
+    dtNasc: '18/11/2009',
+    ac: 'X',
+    rv: 'X',
+    ci: 'Convocado',
+  });
+  assert.equal(records[2]?.nome, 'ADRIAN CARVALHO DESVARS ARAUJO');
+  assert.equal(records[2]?.inscricao, '2060002');
+  assert.equal(records[2]?.clas, '507');
+  assert.equal(records[2]?.mf, '7.0125');
+  assert.equal(records[2]?.dtNasc, '23/12/2010');
+  assert.equal(records[3]?.nome, 'ADRIANO HENRIQUE DO NASCIMENTO CARVALHO');
+  assert.equal(records[3]?.inscricao, '2030013');
+  assert.equal(records[3]?.clas, '141');
+  assert.equal(records[3]?.mf, '7.6625');
+  assert.equal(records[3]?.dtNasc, '18/02/2008');
+  assert.equal(result.quality.level, 'consistent');
+});
+
+test('PDF multipágina reutiliza o cabeçalho e não transforma títulos repetidos em registros', async () => {
   const result = await extractPdfPages(
     makeFictionalLayoutPdf([
-      makeFictionalTablePage(['Ana Candidata Fictícia', 'Bruno Candidato Fictício']),
-      makeFictionalTablePage(['Carla Candidata Fictícia', 'Diego Candidato Fictício']),
+      makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(0, 2), true, true),
+      makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(2), true, true),
     ]),
     pdfjs,
   );
 
   assert.equal(result.pageCount, 2);
-  assert.equal(result.quality.level, 'consistent');
   assert.equal(result.quality.structuredRows, 4);
-  assert.equal(result.pages[1].lines[0].cells[0], 'Nome');
+  assert.equal(result.pages[1].lines.filter((line) => line.kind === 'table-header').length, 1);
+  assert.equal(result.pages[1].lines.filter((line) => line.kind === 'metadata').length, 4);
+  assert.equal(result.pages[1].lines.filter((line) => line.kind === 'candidate').length, 2);
 });
 
-test('PDF fictício com campo deslocado recomenda revisão em vez de declarar a tabela confiável', async () => {
-  const result = await extractPdfPages(
-    makeFictionalLayoutPdf([makeFictionalTablePage([
-      'Ana Candidata Fictícia',
-      'Bruno Candidato Fictício',
-      'Carla Candidata Fictícia',
-    ], true, 1)]),
-    pdfjs,
-  );
-
-  assert.equal(result.quality.level, 'caution');
-  assert.equal(result.quality.possibleShiftedLines, 1);
-  assert.ok(result.quality.reasons.some((reason) => reason.includes('campos além')));
-});
-
-test('PDF fictício com linha incompleta sinaliza a quantidade de campos divergente', async () => {
-  const result = await extractPdfPages(
-    makeFictionalLayoutPdf([makeFictionalTablePage([
-      'Ana Candidata Fictícia',
-      'Bruno Candidato Fictício',
-      'Carla Candidata Fictícia',
-    ], true, -1, 1)]),
-    pdfjs,
-  );
-
-  assert.equal(result.quality.level, 'caution');
-  assert.equal(result.quality.incompleteLines, 1);
-});
-
-test('PDF com páginas legíveis e páginas sem texto alerta sobre cobertura parcial', async () => {
+test('PDF sem cabeçalho repetido reutiliza os limites anteriores em páginas seguintes', async () => {
   const result = await extractPdfPages(
     makeFictionalLayoutPdf([
-      makeFictionalTablePage([
-        'Ana Candidata Fictícia',
-        'Bruno Candidato Fictício',
-        'Carla Candidata Fictícia',
-      ]),
+      makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(0, 2)),
+      makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(2), false),
+    ]),
+    pdfjs,
+  );
+
+  assert.equal(result.pages[1].lines.filter((line) => line.kind === 'candidate').length, 2);
+  assert.equal(result.pages[1].lines[0].record?.inscricao, '2060002');
+});
+
+test('PDF mantém linha incompleta para revisão e não desloca campos depois de um valor vazio', async () => {
+  const incomplete = [...CPCAR_REFERENCE_RECORDS[0]];
+  incomplete[1] = '';
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([makeCpcarResultPage([CPCAR_REFERENCE_RECORDS[0], incomplete])]),
+    pdfjs,
+  );
+  const candidates = result.pages[0].lines.filter((line) => line.kind === 'candidate');
+
+  assert.equal(candidates.length, 2);
+  assert.equal(candidates[1].record?.inscricao, '');
+  assert.equal(candidates[1].record?.clas, '1040');
+  assert.equal(candidates[1].record?.mf, '6.0812');
+  assert.equal(candidates[1].record?.ci, 'Convocado');
+  assert.equal(candidates[1].needsReview, true);
+  assert.equal(result.quality.level, 'caution');
+});
+
+test('PDF preserva trechos de posição incerta sem adicionar colunas à tabela', async () => {
+  const page = makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(0, 1));
+  page.push({ text: 'FICTICIO trecho sem posição segura', x: 880, y: 145 });
+  const result = await extractPdfPages(makeFictionalLayoutPdf([page]), pdfjs);
+  const candidate = result.pages[0].lines.find((line) => line.kind === 'candidate');
+
+  assert.ok(candidate);
+  assert.equal(candidate.cells.length, 12);
+  assert.deepEqual(candidate.unmappedFragments, ['FICTICIO trecho sem posição segura']);
+  assert.equal(candidate.needsReview, true);
+  assert.equal(result.quality.possibleShiftedLines, 1);
+});
+
+test('PDF com página sem texto alerta sobre cobertura parcial', async () => {
+  const result = await extractPdfPages(
+    makeFictionalLayoutPdf([
+      makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(0, 3)),
       [],
     ]),
     pdfjs,
@@ -319,22 +374,6 @@ test('PDF com páginas legíveis e páginas sem texto alerta sobre cobertura par
   assert.equal(result.quality.level, 'caution');
   assert.equal(result.quality.pageTextCoverage, 0.5);
   assert.deepEqual(result.pagesWithoutText, [2]);
-});
-
-test('PDF fictício com texto em duas colunas preserva a separação, mas sem cabeçalho é indeterminado', async () => {
-  const page = [
-    { text: 'Coluna esquerda', x: 20, y: 170 },
-    { text: 'Coluna direita', x: 360, y: 170 },
-    { text: 'Linha esquerda', x: 20, y: 145 },
-    { text: 'Linha direita', x: 360, y: 145 },
-    { text: 'Outra esquerda', x: 20, y: 120 },
-    { text: 'Outra direita', x: 360, y: 120 },
-  ];
-  const result = await extractPdfPages(makeFictionalLayoutPdf([page]), pdfjs);
-
-  assert.deepEqual(result.pages[0].lines[0].cells, ['Coluna esquerda', 'Coluna direita']);
-  assert.equal(result.quality.level, 'indeterminate');
-  assert.equal(result.quality.recognizedHeader, false);
 });
 
 test('linhas numerosas sem cabeçalho não são classificadas como confiáveis', () => {

@@ -260,6 +260,7 @@ test('a prévia apresenta recomendação para revisão sem oferecer conversão n
         fieldCountConsistency: 2 / 3,
         incompleteLines: 1,
         possibleShiftedLines: 0,
+        needsReviewLines: 0,
         reasons: ['1 linha fictícia tem menos campos que o padrão observado.'],
       },
     }));

@@ -1,0 +1,163 @@
+# RETOMAR CORREÇÃO DA TABELA “SEPARAÇÃO ESPACIAL PRELIMINAR” — CLASSIFICA MILITARES
+
+A execução anterior foi interrompida porque as cotas do Replit se esgotaram. As cotas já foram recuperadas. Retome a tarefa no estado atual do projeto, aproveitando tudo o que já estiver implementado.
+
+**Não reinicie o projeto, não reverta alterações válidas e não repita desnecessariamente etapas que já foram concluídas. Primeiro, faça um diagnóstico do estado atual do código e determine exatamente o que falta para concluir a correção.**
+
+## 1. Inspecionar o estado atual antes de modificar o código
+
+Verifique:
+- Os arquivos modificados na tentativa anterior.
+- A implementação atual do extrator de PDFs.
+- A lógica de agrupamento espacial e identificação de cabeçalhos.
+- O componente que renderiza a tabela “Separação espacial preliminar”.
+- Os testes existentes e eventuais testes adicionados na execução anterior.
+- O estado atual da importação e da pré-visualização.
+
+Se houver alterações parciais, aproveite-as e corrija apenas o que estiver incompleto ou incorreto. Evite criar uma segunda implementação da mesma funcionalidade.
+
+Se o PDF original utilizado no teste estiver disponível no projeto, reutilize-o. Se não estiver disponível, identifique essa limitação e não afirme que validou o resultado real.
+
+## 2. Problema que precisa ser resolvido
+
+A tabela atual continua apresentando uma reconstrução incorreta do PDF. O sistema identifica até 22 campos por posição, gera diversos cabeçalhos “Cabeçalho não identificado” e não mantém os valores alinhados aos campos reais.
+
+Os erros incluem:
+- Agrupamento de `INSCRIÇÃO` e `CLAS`.
+- Agrupamento ou deslocamento de `DT_NASC`, `AC`, `RV` e `CI`.
+- Deslocamento das notas `MF`, `PORT`, `MAT`, `ING` e `RED`.
+- Desalinhamento dos indicadores `X` e do texto `Convocado`.
+- Tratamento de títulos institucionais como se fossem cabeçalhos de colunas.
+
+A correção deve ocorrer na extração, no mapeamento dos campos e na estrutura dos dados. **Não tente resolver apenas alterando CSS, largura de colunas ou nomes de cabeçalho.**
+
+## 3. Reconstruir a tabela com base nos cabeçalhos reais
+
+O documento de referência é um resultado do EA CPCAR 2026, com o título “Resultado Final nas Provas Escritas - Candidatos COM Aproveitamento e Convocados para Concentração Intermediária”.
+
+Textos como “DIRETORIA DE ENSINO”, “SISTEMA INTEGRADO DE GESTÃO E CONTROLE”, “EA CPCAR 2026”, “AMPLA CONCORRÊNCIA” e “Concentração Intermediária” são informações institucionais, títulos ou metadados. Não devem virar colunas de candidatos.
+
+Identifique o cabeçalho tabular real no PDF e confirme sua grafia e sua estrutura diretamente no documento.
+
+A sequência de campos esperada é:
+
+1. `INHA` — confirme a grafia exata no PDF.
+2. `NOME`
+3. `INSCRIÇÃO`
+4. `CLAS`
+5. `MF`
+6. `PORT`
+7. `MAT`
+8. `ING`
+9. `RED`
+10. `DT_NASC`
+11. `AC`
+12. `RV`
+13. `CI`
+
+Identifique também eventuais colunas de status, como as que contêm `X` e `Convocado`, usando o cabeçalho e a estrutura real do PDF. Não invente colunas adicionais.
+
+## 4. Corrigir a lógica de parsing espacial
+
+Inspecione a implementação atual e determine por que ela está transformando posições ou segmentos de texto em colunas arbitrárias.
+
+A correção deve seguir esta lógica:
+
+1. Extrair texto, coordenadas X/Y e número da página.
+2. Identificar a região que contém a tabela.
+3. Localizar os cabeçalhos reais das colunas.
+4. Determinar limites horizontais consistentes para cada coluna, usando a posição dos cabeçalhos e outros elementos visuais disponíveis.
+5. Agrupar os segmentos de cada linha sem dividir nomes compostos nem misturar campos distintos.
+6. Associar cada valor à coluna correspondente.
+7. Reutilizar o mesmo mapeamento nas linhas seguintes e nas páginas que mantenham a mesma estrutura.
+8. Reconhecer cabeçalhos repetidos sem tratá-los como registros de candidatos.
+9. Validar a coerência dos campos antes de gerar a prévia.
+
+A quantidade de segmentos de texto encontrados não determina a quantidade de colunas. Campos vazios não podem fazer os valores seguintes avançarem para a coluna anterior ou posterior.
+
+Não use espaços simples como único critério de separação. Não use expressões regulares como substituto da análise espacial. Validações por tipo de dado podem ajudar, mas não devem sobrepor indiscriminadamente a posição e o cabeçalho real.
+
+## 5. Garantir a separação dos campos problemáticos
+
+Os seguintes campos devem ser independentes:
+
+- `INSCRIÇÃO` e `CLAS`.
+- `MF`, `PORT`, `MAT`, `ING` e `RED`.
+- `DT_NASC`, `AC`, `RV` e `CI`.
+- Cada coluna de status realmente presente no documento.
+
+Cada campo deve ter sua própria chave no objeto estruturado, seu próprio cabeçalho e sua própria célula na tabela.
+
+Não agrupe inscrição e classificação por ambos serem números. Não agrupe data de nascimento, AC e RV por estarem próximos. Não mova valores para preencher espaços vazios.
+
+Preserve inscrições como texto para evitar perda de zeros à esquerda. Preserve nomes completos, datas e valores numéricos conforme apresentados na fonte.
+
+Se algum valor não puder ser associado com segurança, sinalize-o para conferência em vez de inventar ou deslocar dados.
+
+## 6. Corrigir a tabela exibida
+
+A “Separação espacial preliminar” deve renderizar os dados estruturados, não a sequência bruta de fragmentos espaciais.
+
+Use um esquema explícito e consistente para os campos identificados. Não crie cabeçalhos genéricos apenas porque foram detectadas posições adicionais.
+
+Títulos, metadados, cabeçalhos e registros de candidatos devem ser tratados como tipos diferentes de linha.
+
+Os registros devem manter a mesma estrutura lógica de colunas. A ausência de um campo deve resultar em uma célula vazia ou em um aviso de revisão, sem deslocar os campos seguintes.
+
+Mantenha as funcionalidades atuais de conferência e correção manual.
+
+## 7. Validar com os registros conhecidos
+
+Use os seguintes registros como casos de referência:
+
+- ADAM QUINTANILHA DA SILVA — inscrição `2030008`, classificação `1040`, MF `6.0812`, nascimento `19/06/2008`.
+- ADLA DE ANDRADE SALES — inscrição `2120002`, classificação `211`, MF `7.4625`, nascimento `18/11/2009`.
+- ADRIAN CARVALHO DESVARS ARAUJO — inscrição `2060002`, classificação `507`, MF `7.0125`, nascimento `23/12/2010`.
+- ADRIANO HENRIQUE DO NASCIMENTO CARVALHO — inscrição `2030013`, classificação `141`, MF `7.6625`, nascimento `18/02/2008`.
+
+Esses dados são referências para verificar a associação entre candidato, inscrição, classificação, MF e data de nascimento. Consulte o PDF original para validar os demais campos, as notas e os indicadores de status.
+
+Não use os índices da saída espacial defeituosa como verdade. A fonte de referência é o PDF original.
+
+## 8. Preservar registros incompletos e diferentes
+
+Não descarte candidatos por terem menos segmentos de texto. Não invente campos ausentes nem classifique automaticamente qualquer linha irregular como erro.
+
+Se houver candidatos excluídos ou registros com estrutura diferente:
+- Preserve os dados encontrados.
+- Identifique a situação apenas quando houver evidência no documento.
+- Evite deslocar as colunas dos demais registros.
+- Sinalize ambiguidades para revisão.
+
+## 9. Testar antes de declarar concluído
+
+Aproveite os testes existentes e adicione apenas os necessários para cobrir os casos ainda não testados:
+
+- Cabeçalhos reais reconhecidos corretamente.
+- Títulos institucionais excluídos do cabeçalho tabular.
+- `INSCRIÇÃO` separado de `CLAS`.
+- `DT_NASC`, `AC`, `RV` e `CI` separados.
+- Notas e indicadores de status alinhados.
+- Nomes compostos preservados.
+- Campos vazios sem deslocamento.
+- Cabeçalhos repetidos e múltiplas páginas.
+- Registros incompletos preservados.
+- Os quatro candidatos de referência associados aos seus dados corretos.
+- Renderização da tabela a partir dos dados estruturados.
+
+Execute os testes existentes, a verificação de tipos e a compilação de produção.
+
+Se as cotas disponíveis forem insuficientes para terminar tudo em uma única execução, priorize a correção do parsing e os testes essenciais. Deixe o código em um estado consistente e informe exatamente o que falta, sem declarar a tarefa concluída prematuramente.
+
+## 10. Relatório final obrigatório
+
+Informe:
+- O que já estava implementado quando a tarefa foi retomada.
+- Quais arquivos foram modificados nesta continuação.
+- A causa identificada do erro.
+- Como os limites das colunas passaram a ser determinados.
+- Quais testes foram executados e seus resultados.
+- Se a validação foi realizada com o PDF original ou somente com dados sintéticos.
+- Quais limitações permanecem.
+
+**Critério de conclusão:** a tabela deve reconstruir as colunas reais do PDF, mantendo inscrição, classificação, notas, data de nascimento, AC, RV, CI e status em seus respectivos campos, sem gerar colunas arbitrárias nem deslocar os valores. A correção precisa funcionar na estrutura dos dados e na visualização, não apenas na aparência.

@@ -15,17 +15,21 @@ export interface PdfTextLine {
   record?: MilitaryCandidateRecord;
 }
 
+/**
+ * These are the headings present in the official EA CPCAR 2026 result table.
+ * In particular, that PDF has no INHA heading: it must not be manufactured as
+ * a column from the number or spacing of text fragments.
+ */
 export const MILITARY_RESULT_COLUMNS = [
-  { key: 'inha', label: 'INHA' },
-  { key: 'nome', label: 'NOME' },
-  { key: 'inscricao', label: 'INSCRIÇÃO' },
-  { key: 'clas', label: 'CLAS' },
+  { key: 'nome', label: 'Nome' },
+  { key: 'inscricao', label: 'Inscrição' },
+  { key: 'clas', label: 'Clas' },
   { key: 'mf', label: 'MF' },
-  { key: 'port', label: 'PORT' },
-  { key: 'mat', label: 'MAT' },
-  { key: 'ing', label: 'ING' },
-  { key: 'red', label: 'RED' },
-  { key: 'dtNasc', label: 'DT_NASC' },
+  { key: 'port', label: 'Port' },
+  { key: 'mat', label: 'Mat' },
+  { key: 'ing', label: 'Ing' },
+  { key: 'red', label: 'Red' },
+  { key: 'dtNasc', label: 'Dt_nasc' },
   { key: 'ac', label: 'AC' },
   { key: 'rv', label: 'RV' },
   { key: 'ci', label: 'CI' },
@@ -79,10 +83,6 @@ export interface PdfJsEngine {
   }): PdfJsLoadingTask;
 }
 
-function assertNotAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new DOMException('Leitura cancelada.', 'AbortError');
-}
-
 interface PositionedTextItem {
   text: string;
   x: number;
@@ -92,56 +92,68 @@ interface PositionedTextItem {
   hasEOL: boolean;
 }
 
-function normalizeText(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-function isRecognizedHeader(line: PdfTextLine): boolean {
-  return line.kind === 'table-header' || line.isHeader === true;
-}
-
 interface SchemaHeaderMatch {
   index: number;
   start: number;
   end: number;
   label: string;
+  x: number;
+  fontSize: number;
 }
 
-const SCHEMA_ALIASES = MILITARY_RESULT_COLUMNS.map((column, index) => {
-  const aliases: string[][] = [
-    ['inha'],
-    ['nome'],
-    ['inscricao'],
-    ['classificacao', 'clas'],
-    ['mf'],
-    ['portugues', 'port'],
-    ['matematica', 'mat'],
-    ['ingles', 'ing'],
-    ['redacao', 'red'],
-    ['data de nascimento', 'datanascimento', 'dt_nasc'],
-    ['ac'],
-    ['rv'],
-    ['ci'],
-  ];
-  return { index, key: column.key, aliases: aliases[index] };
-}).flatMap(({ index, aliases }) => aliases.map((alias) => ({ index, alias })))
+interface PdfTableLayout {
+  positions: Array<number | null>;
+  labels: string[];
+  complete: boolean;
+  ordered: boolean;
+}
+
+const SCHEMA_ALIASES = [
+  ['nome'],
+  ['inscricao'],
+  ['classificacao', 'clas'],
+  ['mf'],
+  ['portugues', 'port'],
+  ['matematica', 'mat'],
+  ['ingles', 'ing'],
+  ['redacao', 'red'],
+  ['data de nascimento', 'dt_nasc', 'dtnasc'],
+  ['ac'],
+  ['rv'],
+  ['ci'],
+].flatMap((aliases, index) => aliases.map((alias) => ({ index, alias })))
   .sort((left, right) => right.alias.length - left.alias.length);
 
-function extractSchemaHeaderMatches(text: string): SchemaHeaderMatch[] {
+const REQUIRED_RESULT_COLUMN_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 11];
+
+function assertNotAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException('Leitura cancelada.', 'AbortError');
+}
+
+function normalizeText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function extractSchemaHeaderMatches(text: string): Array<Omit<SchemaHeaderMatch, 'x' | 'fontSize'>> {
   const normalized = normalizeText(text);
-  const matches: SchemaHeaderMatch[] = [];
+  const matches: Array<Omit<SchemaHeaderMatch, 'x' | 'fontSize'>> = [];
   let previousMatchEnd = -1;
 
   for (let index = 0; index < normalized.length;) {
     const match = SCHEMA_ALIASES.find(({ alias }) => {
       if (!normalized.startsWith(alias, index)) return false;
-      const previousCharacter = normalized[index - 1];
-      const nextCharacter = normalized[index + alias.length];
-      const beginsAtBoundary = index === 0 || index === previousMatchEnd || !/[a-z0-9]/.test(previousCharacter ?? '');
-      const endsAtBoundary = !/[a-z0-9]/.test(nextCharacter ?? '');
-      const startsNextLabel = SCHEMA_ALIASES.some(({ alias: nextAlias }) => normalized.startsWith(nextAlias, index + alias.length));
+      const previousCharacter = normalized[index - 1] ?? '';
+      const nextCharacter = normalized[index + alias.length] ?? '';
+      const startsNextLabel = SCHEMA_ALIASES.some(({ alias: nextAlias }) => (
+        normalized.startsWith(nextAlias, index + alias.length)
+      ));
+      const beginsAtBoundary = index === 0
+        || index === previousMatchEnd
+        || !/[a-z0-9]/.test(previousCharacter);
+      const endsAtBoundary = !/[a-z0-9]/.test(nextCharacter);
       return beginsAtBoundary && (endsAtBoundary || startsNextLabel);
     });
+
     if (!match) {
       index += 1;
       continue;
@@ -159,49 +171,49 @@ function extractSchemaHeaderMatches(text: string): SchemaHeaderMatch[] {
   return matches;
 }
 
-interface PdfTableLayout {
-  positions: Array<number | null>;
-  labels: string[];
-  complete: boolean;
-  ordered: boolean;
-}
-
-function matchesForGroup(group: { items: PositionedTextItem[] }): Array<SchemaHeaderMatch & { x: number }> {
+function matchesForGroup(group: { items: PositionedTextItem[] }): SchemaHeaderMatch[] {
   return group.items.flatMap((item) => {
     const matches = extractSchemaHeaderMatches(item.text);
-    return matches.map((match) => {
-      const characters = Math.max(1, item.text.length);
-      const measuredWidth = item.width > 0 ? item.width : item.fontSize * characters * 0.5;
-      const estimatedX = matches.length > 1
-        ? item.x + measuredWidth * (match.start / characters)
-        : item.x;
-      return { ...match, x: estimatedX };
-    });
+    const textLength = Math.max(1, normalizeText(item.text).length);
+    const measuredWidth = item.width > 0
+      ? item.width
+      : item.fontSize * Math.max(1, item.text.length) * 0.5;
+
+    return matches.map((match) => ({
+      ...match,
+      x: item.x + measuredWidth * (match.start / textLength),
+      fontSize: item.fontSize,
+    }));
   });
 }
 
 function isCandidateHeader(group: { items: PositionedTextItem[] }): boolean {
-  const indices = new Set(matchesForGroup(group).map((match) => match.index));
-  return indices.has(1) && indices.has(2) && indices.has(3);
+  const indexes = new Set(matchesForGroup(group).map((match) => match.index));
+  return indexes.has(0) && indexes.has(1) && indexes.has(2);
 }
 
 function makeTableLayout(
   group: { items: PositionedTextItem[] },
   previous?: PdfTableLayout,
 ): PdfTableLayout {
-  const positions = previous ? [...previous.positions] : Array.from({ length: MILITARY_RESULT_COLUMNS.length }, () => null);
-  const labels = previous ? [...previous.labels] : MILITARY_RESULT_COLUMNS.map((column) => column.label);
+  const positions = previous
+    ? [...previous.positions]
+    : Array.from({ length: MILITARY_RESULT_COLUMNS.length }, () => null);
+  const labels = previous
+    ? [...previous.labels]
+    : Array.from({ length: MILITARY_RESULT_COLUMNS.length }, () => '');
   const matches = matchesForGroup(group);
-  const seen = new Set<number>();
 
   for (const match of matches) {
-    if (seen.has(match.index)) continue;
     positions[match.index] = match.x;
-    labels[match.index] = match.label;
-    seen.add(match.index);
+    labels[match.index] = MILITARY_RESULT_COLUMNS[match.index].label;
   }
+
   const knownPositions = positions.filter((position): position is number => position !== null);
-  const ordered = knownPositions.every((position, index) => index === 0 || position > knownPositions[index - 1]);
+  const ordered = knownPositions.every((position, index) => (
+    index === 0 || position > knownPositions[index - 1]
+  ));
+
   return {
     positions,
     labels,
@@ -210,11 +222,7 @@ function makeTableLayout(
   };
 }
 
-function assignToColumn(
-  x: number,
-  fontSize: number,
-  layout: PdfTableLayout,
-): number | null {
+function assignToColumn(x: number, fontSize: number, layout: PdfTableLayout): number | null {
   if (!layout.ordered) return null;
   const known = layout.positions
     .map((position, index) => position === null ? null : { position, index })
@@ -224,8 +232,10 @@ function assignToColumn(
   if (layout.complete) {
     const firstGap = known[1].position - known[0].position;
     const lastGap = known.at(-1)!.position - known.at(-2)!.position;
-    if (x < known[0].position - Math.max(fontSize, firstGap * 0.4)
-      || x > known.at(-1)!.position + Math.max(fontSize * 1.5, lastGap * 0.65)) {
+    if (
+      x < known[0].position - Math.max(fontSize, firstGap * 0.4)
+      || x > known.at(-1)!.position + Math.max(fontSize * 1.5, lastGap * 0.65)
+    ) {
       return null;
     }
     for (let index = 0; index < known.length - 1; index += 1) {
@@ -240,15 +250,38 @@ function assignToColumn(
     if (Math.abs(entry.position - x) < Math.abs(closest.position - x)) closest = entry;
   }
   const distances = known.slice(1).map((entry, index) => entry.position - known[index].position);
-  const typicalGap = distances.length ? distances.sort((left, right) => left - right)[Math.floor(distances.length / 2)] : fontSize * 2;
+  const typicalGap = distances.length
+    ? [...distances].sort((left, right) => left - right)[Math.floor(distances.length / 2)]
+    : fontSize * 2;
   return Math.abs(closest.position - x) <= Math.max(fontSize, Math.min(10, typicalGap * 0.28))
     ? closest.index
     : null;
 }
 
-function makePdfLines(items: unknown[]): PdfTextLine[] {
+function findColumnAssignment(
+  x: number,
+  fontSize: number,
+  layout: PdfTableLayout,
+): { index: number; aligned: boolean } | null {
+  const index = assignToColumn(x, fontSize, layout);
+  if (index === null) return null;
+  const anchor = layout.positions[index];
+  if (anchor === null) return null;
+  const neighboringDistances = layout.positions
+    .map((position, neighborIndex) => position === null || neighborIndex === index
+      ? null
+      : Math.abs(position - anchor))
+    .filter((distance): distance is number => distance !== null);
+  const nearestGap = neighboringDistances.length ? Math.min(...neighboringDistances) : fontSize * 2;
+  return {
+    index,
+    aligned: Math.abs(x - anchor) <= Math.max(fontSize * 1.5, nearestGap * 0.35),
+  };
+}
+
+function positionedItems(items: unknown[]): { positioned: PositionedTextItem[]; unpositioned: string[] } {
   const positioned: PositionedTextItem[] = [];
-  const unpositioned: Array<{ text: string; hasEOL: boolean }> = [];
+  const unpositioned: string[] = [];
 
   for (const item of items) {
     const value = item as {
@@ -259,7 +292,6 @@ function makePdfLines(items: unknown[]): PdfTextLine[] {
       height?: unknown;
     };
     if (typeof value.str !== 'string' || value.str.trim() === '') continue;
-    const hasEOL = value.hasEOL === true;
     const transform = Array.isArray(value.transform) ? value.transform : null;
     if (
       transform
@@ -270,44 +302,29 @@ function makePdfLines(items: unknown[]): PdfTextLine[] {
       const b = transform[1] as number;
       const c = transform[2] as number;
       const d = transform[3] as number;
-      const fontSize = Math.max(
-        1,
-        Math.hypot(a, b),
-        Math.hypot(c, d),
-        typeof value.height === 'number' && Number.isFinite(value.height) ? value.height : 0,
-      );
       positioned.push({
         text: value.str,
         x: transform[4] as number,
         y: transform[5] as number,
         width: typeof value.width === 'number' && Number.isFinite(value.width) ? value.width : 0,
-        fontSize,
-        hasEOL,
+        fontSize: Math.max(
+          1,
+          Math.hypot(a, b),
+          Math.hypot(c, d),
+          typeof value.height === 'number' && Number.isFinite(value.height) ? value.height : 0,
+        ),
+        hasEOL: value.hasEOL === true,
       });
     } else {
-      unpositioned.push({ text: value.str, hasEOL });
+      unpositioned.push(value.str);
     }
   }
 
-  if (positioned.length === 0) {
-    const lines: PdfTextLine[] = [];
-    let current = '';
-    for (const item of unpositioned) {
-      current += `${current ? ' ' : ''}${item.text}`;
-      if (item.hasEOL) {
-        const text = current.trim();
-        if (text) lines.push({ text, cells: [text], isHeader: getHeaderCategories(text).size >= 2 });
-        current = '';
-      }
-    }
-    if (current.trim()) {
-      const text = current.trim();
-      lines.push({ text, cells: [text], isHeader: getHeaderCategories(text).size >= 2 });
-    }
-    return lines;
-  }
+  return { positioned, unpositioned };
+}
 
-  const sorted = positioned.sort((left, right) => right.y - left.y || left.x - right.x);
+function groupPositionedItems(items: PositionedTextItem[]): Array<{ y: number; items: PositionedTextItem[] }> {
+  const sorted = [...items].sort((left, right) => right.y - left.y || left.x - right.x);
   const groups: Array<{ y: number; items: PositionedTextItem[] }> = [];
   for (const item of sorted) {
     const current = groups.at(-1);
@@ -319,139 +336,140 @@ function makePdfLines(items: unknown[]): PdfTextLine[] {
       groups.push({ y: item.y, items: [item] });
     }
   }
+  return groups;
+}
 
-  const headerGroups = groups.map((group) => ({
-    group,
-    isHeader: getHeaderCategories(group.items.map((item) => item.text).join(' ')).size >= 2,
-  }));
-  const headerColumnStarts = headerGroups
-    .filter(({ isHeader }) => isHeader)
-    .flatMap(({ group }) => group.items
-      .filter((item) => isHeaderFieldLabel(item.text))
-      .map((item) => ({ x: item.x, fontSize: item.fontSize })));
-  const dataGroups = headerGroups.filter(({ isHeader }) => !isHeader).map(({ group }) => group);
-  const repeatedDataStarts: Array<{ x: number; fontSize: number; rows: Set<number> }> = [];
-  dataGroups.forEach((group, rowIndex) => {
-    for (const item of group.items) {
-      if (!item.text.trim()) continue;
-      const tolerance = Math.max(1.5, Math.min(3.5, item.fontSize * 0.25));
-      const cluster = repeatedDataStarts.find((candidate) => Math.abs(candidate.x - item.x) <= Math.max(
-        tolerance,
-        Math.max(1.5, Math.min(3.5, candidate.fontSize * 0.25)),
-      ));
-      if (cluster) {
-        if (!cluster.rows.has(rowIndex)) {
-          cluster.x = (cluster.x * cluster.rows.size + item.x) / (cluster.rows.size + 1);
-          cluster.rows.add(rowIndex);
-        }
-      } else {
-        repeatedDataStarts.push({ x: item.x, fontSize: item.fontSize, rows: new Set([rowIndex]) });
-      }
-    }
-  });
-  const repeatedAnchors = repeatedDataStarts
-    .filter((anchor) => anchor.rows.size >= Math.min(2, dataGroups.length))
-    .map(({ x, fontSize }) => ({ x, fontSize }));
-  const columnAnchors = mergeColumnAnchors([...headerColumnStarts, ...repeatedAnchors]);
-  const hasPositionedColumns = columnAnchors.length >= 2;
+function isInstitutionalMetadata(text: string): boolean {
+  const normalized = normalizeText(text);
+  return [
+    'diretoria de ensino',
+    'sistema integrado de gestao e controle',
+    'ea cpcar',
+    'exame de admissao ao curso preparatorio',
+    'resultado final nas provas escritas',
+    'ampla concorrencia',
+    'concentracao intermediaria',
+    'data:',
+  ].some((phrase) => normalized.includes(phrase));
+}
 
-  const lines: PdfTextLine[] = headerGroups.map(({ group, isHeader }) => {
+function makeEmptyRecord(): MilitaryCandidateRecord {
+  return Object.fromEntries(
+    MILITARY_RESULT_COLUMNS.map(({ key }) => [key, '']),
+  ) as MilitaryCandidateRecord;
+}
+
+function makePdfLines(
+  items: unknown[],
+  previousLayout?: PdfTableLayout,
+): { lines: PdfTextLine[]; layout?: PdfTableLayout } {
+  const { positioned, unpositioned } = positionedItems(items);
+  const groups = groupPositionedItems(positioned);
+  let layout = previousLayout;
+  let tableStarted = previousLayout !== undefined;
+  const lines: PdfTextLine[] = [];
+
+  for (const group of groups) {
     const rowItems = [...group.items].sort((left, right) => left.x - right.x);
     const rawText = rowItems.map((item) => item.text.trim()).filter(Boolean).join(' ');
-    let cells: string[] = [];
-    let needsReview = false;
-    const unmappedFragments: string[] = [];
+    const isHeader = isCandidateHeader(group);
 
-    if (hasPositionedColumns) {
-      cells = Array.from({ length: columnAnchors.length }, () => '');
-      if (isHeader && rowItems.length === 1) {
-        const labels = extractHeaderLabels(rowItems[0].text);
-        if (labels.length === cells.length) {
-          cells = labels;
-        } else {
-          const assignment = findColumnAssignment(rowItems[0].x, rowItems[0].fontSize, columnAnchors);
-          if (assignment) {
-            cells[assignment.index] = rowItems[0].text.trim();
-          } else {
-            unmappedFragments.push(rowItems[0].text.trim());
-          }
-          needsReview = labels.length > 1 || !assignment;
-        }
-      } else {
-        for (const item of rowItems) {
-          const assignment = findColumnAssignment(item.x, item.fontSize, columnAnchors);
-          if (!assignment) {
-            unmappedFragments.push(item.text.trim());
-            needsReview = true;
-            continue;
-          }
-          if (!assignment.aligned) needsReview = true;
-
-          if (isHeader) {
-            const labels = extractHeaderLabels(item.text);
-            if (labels.length > 1 && assignment.index + labels.length <= cells.length) {
-              labels.forEach((label, offset) => {
-                cells[assignment.index + offset] = label;
-              });
-            } else if (labels.length > 1) {
-              unmappedFragments.push(item.text.trim());
-              needsReview = true;
-            } else {
-              cells[assignment.index] = [cells[assignment.index], item.text.trim()].filter(Boolean).join(' ');
-            }
-          } else {
-            cells[assignment.index] = [cells[assignment.index], item.text.trim()].filter(Boolean).join(' ');
-          }
-        }
-      }
-    } else {
-      let lastItem: PositionedTextItem | undefined;
-      for (const item of rowItems) {
-        const gap = lastItem ? item.x - (lastItem.x + lastItem.width) : 0;
-        const threshold = Math.max(4, item.fontSize * 1.1);
-        if (cells.length === 0 || gap > threshold) {
-          cells.push(item.text.trim());
-        } else {
-          cells[cells.length - 1] = `${cells[cells.length - 1]} ${item.text.trim()}`.trim();
-        }
-        lastItem = item;
-      }
-      if (isHeader && cells.length === 1) {
-        const labels = extractHeaderLabels(cells[0]);
-        if (labels.length >= 2) cells.splice(0, 1, ...labels);
-      }
+    if (isHeader) {
+      layout = makeTableLayout(group, layout);
+      tableStarted = true;
+      const cells = layout.labels.map((label, index) => (
+        layout?.positions[index] === null ? '' : label
+      ));
+      lines.push({
+        text: rawText,
+        cells,
+        isHeader: true,
+        isStructured: true,
+        kind: 'table-header',
+      });
+      continue;
     }
 
-    const populatedCells = cells.filter((cell) => cell.trim()).length;
-    return {
+    if (isInstitutionalMetadata(rawText)) {
+      lines.push({ text: rawText, cells: [rawText], isStructured: false, kind: 'metadata' });
+      continue;
+    }
+
+    if (!tableStarted || !layout) {
+      lines.push({
+        text: rawText,
+        cells: [rawText],
+        isStructured: false,
+        kind: 'unmapped',
+        needsReview: true,
+        unmappedFragments: [rawText],
+      });
+      continue;
+    }
+
+    const cells = Array.from({ length: MILITARY_RESULT_COLUMNS.length }, () => '');
+    const unmappedFragments: string[] = [];
+    let needsReview = !layout.complete || !layout.ordered;
+
+    for (const item of rowItems) {
+      const assignment = findColumnAssignment(item.x, item.fontSize, layout);
+      if (!assignment) {
+        unmappedFragments.push(item.text.trim());
+        needsReview = true;
+        continue;
+      }
+      if (!assignment.aligned) needsReview = true;
+
+      const value = item.text.trim();
+      const destination = assignment.index;
+      const isNameFragment = destination > 0
+        && destination <= 8
+        && /^[\p{L}\s.'’-]+$/u.test(value)
+        && value.length > 1;
+      if (isNameFragment && cells[0]) {
+        cells[0] = `${cells[0]} ${value}`.trim();
+        needsReview = true;
+        continue;
+      }
+      cells[destination] = [cells[destination], value].filter(Boolean).join(' ');
+    }
+
+    const populatedCount = cells.filter((cell) => cell.trim()).length;
+    const hasCandidateName = /^[\p{L}\s.'’-]{3,}$/u.test(cells[0].trim());
+    const hasCandidateContent = populatedCount >= 2 || hasCandidateName;
+    const kind: PdfTextLine['kind'] = hasCandidateContent ? 'candidate' : 'unmapped';
+    const missingRequiredFields = REQUIRED_RESULT_COLUMN_INDEXES.some((index) => !cells[index].trim());
+    if (hasCandidateContent && missingRequiredFields) needsReview = true;
+    const record = makeEmptyRecord();
+    MILITARY_RESULT_COLUMNS.forEach(({ key }, index) => { record[key] = cells[index]; });
+
+    lines.push({
       text: rawText,
       cells,
-      isHeader,
-      isStructured: isHeader || populatedCells >= 2,
-      ...(needsReview || unmappedFragments.length > 0 ? { needsReview: true } : {}),
+      record,
+      kind,
+      isStructured: populatedCount >= 2,
+      ...(needsReview ? { needsReview: true } : {}),
       ...(unmappedFragments.length > 0 ? { unmappedFragments } : {}),
-    };
-  });
+    });
+  }
 
   if (unpositioned.length > 0) {
-    let current = '';
-    for (const item of unpositioned) {
-      current += `${current ? ' ' : ''}${item.text}`;
-      if (item.hasEOL) {
-        if (current.trim()) {
-          const text = current.trim();
-          lines.push({ text, cells: [text], isHeader: getHeaderCategories(text).size >= 2 });
-        }
-        current = '';
-      }
-    }
-    if (current.trim()) {
-      const text = current.trim();
-      lines.push({ text, cells: [text], isHeader: getHeaderCategories(text).size >= 2 });
+    for (const text of unpositioned) {
+      lines.push({
+        text,
+        cells: [text],
+        kind: 'unmapped',
+        isStructured: false,
+        needsReview: true,
+        unmappedFragments: [text],
+      });
     }
   }
 
-  return lines;
+  // The prior page's mapping remains active when a continuation page omits
+  // its repeated header. A newly recognized heading always refreshes anchors.
+  return { lines, layout };
 }
 
 export function assessPdfQuality(
@@ -462,34 +480,21 @@ export function assessPdfQuality(
   const textPages = pageCount - pagesWithoutText.length;
   const pageTextCoverage = pageCount > 0 ? textPages / pageCount : 0;
   const allLines = pages.flatMap((page) => page.lines);
-  const headers = allLines.filter(isRecognizedHeader);
-  const dataLines = allLines.filter((line) => !isRecognizedHeader(line) && (
-    line.isStructured ?? line.cells.filter((cell) => cell.trim()).length >= 2
-  ));
-  const headerFieldCounts = new Map<number, number>();
-  for (const line of headers) headerFieldCounts.set(line.cells.length, (headerFieldCounts.get(line.cells.length) ?? 0) + 1);
-  const observedFieldCounts = new Map<number, number>();
-  for (const line of dataLines) {
-    const populatedCount = line.cells.filter((cell) => cell.trim()).length;
-    observedFieldCounts.set(populatedCount, (observedFieldCounts.get(populatedCount) ?? 0) + 1);
-  }
-  const expectedFields = [...headerFieldCounts.entries()]
-    .sort((left, right) => right[1] - left[1] || right[0] - left[0])[0]?.[0]
-    ?? [...observedFieldCounts.entries()]
-      .sort((left, right) => right[1] - left[1] || right[0] - left[0])[0]?.[0]
-    ?? null;
-  const completeRows = expectedFields === null
-    ? 0
-    : dataLines.filter((line) => line.cells.length >= expectedFields
-      && line.cells.slice(0, expectedFields).every((cell) => cell.trim())).length;
+  const headers = allLines.filter((line) => line.kind === 'table-header' || line.isHeader === true);
+  const dataLines = allLines.filter((line) => line.kind === 'candidate');
+  const expectedFields = headers.length
+    ? Math.max(...headers.map((line) => line.cells.filter(Boolean).length))
+    : null;
+  const completeRows = dataLines.filter((line) => REQUIRED_RESULT_COLUMN_INDEXES.every(
+    (index) => Boolean(line.cells[index]?.trim()),
+  )).length;
   const fieldCountConsistency = dataLines.length > 0 ? completeRows / dataLines.length : null;
-  const incompleteLines = expectedFields === null
-    ? 0
-    : dataLines.filter((line) => line.cells.length < expectedFields
-      || line.cells.slice(0, expectedFields).some((cell) => !cell.trim())).length;
-  const possibleShiftedLines = expectedFields === null
-    ? 0
-    : dataLines.filter((line) => line.cells.length > expectedFields || (line.unmappedFragments?.length ?? 0) > 0).length;
+  const incompleteLines = dataLines.filter((line) => REQUIRED_RESULT_COLUMN_INDEXES.some(
+    (index) => !line.cells[index]?.trim(),
+  )).length;
+  const possibleShiftedLines = dataLines.filter((line) => (
+    (line.unmappedFragments?.length ?? 0) > 0
+  )).length;
   const needsReviewLines = dataLines.filter((line) => line.needsReview).length;
   const textLength = pages.reduce((total, page) => total + page.text.trim().length, 0);
   const reasons: string[] = [];
@@ -505,10 +510,10 @@ export function assessPdfQuality(
     if (pagesWithoutText.length > 0) {
       reasons.push(`Há página(s) sem texto selecionável: ${pagesWithoutText.join(', ')}.`);
     }
-    if (headers.length === 0) reasons.push('Não foi reconhecido um cabeçalho com campos identificáveis.');
-    if (dataLines.length < 3) reasons.push('Há poucas linhas com separação espacial de campos para comparar.');
+    if (headers.length === 0) reasons.push('Não foi reconhecido o cabeçalho real da tabela de resultados.');
+    if (dataLines.length < 3) reasons.push('Há poucas linhas de candidatos com separação espacial para comparar.');
     if (incompleteLines > 0) {
-      reasons.push(`${incompleteLines} linha(s) têm campos vazios; podem refletir o documento original e foram mantidas.`);
+      reasons.push(`${incompleteLines} linha(s) têm campos essenciais vazios; foram mantidas para conferência.`);
     }
     if (possibleShiftedLines > 0) {
       reasons.push(`${possibleShiftedLines} linha(s) têm trechos sem posição segura; o conteúdo foi preservado para conferência.`);
@@ -521,7 +526,7 @@ export function assessPdfQuality(
       level = 'caution';
     } else if (headers.length > 0 && dataLines.length >= 3 && (fieldCountConsistency ?? 0) >= 0.85) {
       level = 'consistent';
-      reasons.push('Cabeçalho, linhas e quantidades de campos parecem compatíveis; ainda é necessário conferir o documento.');
+      reasons.push('Cabeçalho, linhas e campos essenciais parecem compatíveis; confira os dados com o documento original.');
     } else {
       level = 'indeterminate';
     }
@@ -530,7 +535,7 @@ export function assessPdfQuality(
   if (level === 'insufficient') {
     reasons.push('A conversão para planilha não recupera texto ou células que não foram extraídos.');
   } else if (level === 'caution' || level === 'indeterminate') {
-    reasons.push('Prefira a planilha original XLS/XLSX, se disponível. Uma conversão automática ainda não é oferecida porque poderia apresentar campos inferidos como se fossem originais.');
+    reasons.push('Uma planilha original, se disponível, preserva melhor as colunas do que a inferência espacial.');
   }
 
   return {
@@ -563,13 +568,18 @@ export async function extractPdfPages(
     if (document.numPages < 1) throw new Error('O PDF não contém páginas.');
     const pages: PdfPageText[] = [];
     const pagesWithoutText: number[] = [];
+    let previousLayout: PdfTableLayout | undefined;
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       assertNotAborted(signal);
       onProgress(`PDF: lendo página ${pageNumber} de ${document.numPages}`);
       const page = await document.getPage(pageNumber);
-      const content = await page.getTextContent();
-      const lines = makePdfLines(content.items);
+      const getTextContent = page.getTextContent as unknown as (
+        options: { disableCombineTextItems: boolean },
+      ) => Promise<{ items: unknown[] }>;
+      const content = await getTextContent({ disableCombineTextItems: true });
+      const parsed = makePdfLines(content.items, previousLayout);
+      previousLayout = parsed.layout;
       const text = content.items
         .map((item) => {
           const value = item as { str?: unknown; hasEOL?: boolean };
@@ -580,7 +590,7 @@ export async function extractPdfPages(
         .replace(/[ \t]+\n/g, '\n')
         .trim();
       if (!text) pagesWithoutText.push(pageNumber);
-      pages.push({ pageNumber, text, lines });
+      pages.push({ pageNumber, text, lines: parsed.lines });
       page.cleanup();
     }
 

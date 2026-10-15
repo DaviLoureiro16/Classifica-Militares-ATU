@@ -1,6 +1,8 @@
 import type { WorkBook } from 'xlsx';
 import { extractPdfPages, type PdfExtraction } from './pdf-text-extractor';
 
+export { MILITARY_RESULT_COLUMNS } from './pdf-text-extractor';
+
 export type {
   PdfExtraction,
   PdfPageText,
