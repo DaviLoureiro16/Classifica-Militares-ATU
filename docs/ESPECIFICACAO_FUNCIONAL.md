@@ -8,13 +8,14 @@ O desenho da plataforma deve permitir que concursos de instituições diferentes
 
 ## Escopo da versão atual
 
-**EPCAR e AFA são as únicas opções habilitadas na interface.** A versão atual ainda não carrega listas reais, interpreta documentos, realiza consultas a candidatos ou calcula classificações.
+**EPCAR e AFA são as únicas opções habilitadas na interface.** A versão atual lê arquivos localmente para conferência, mas ainda não carrega listas reais de candidatos, interpreta regras e resultados para classificação, consulta candidatos em uma base real nem calcula classificações.
 
 ### Funcionalidades gerais já presentes na interface
 
 - Navegação entre início, importação, classificação, consulta e sobre.
 - Seleção de concurso limitada ao catálogo ativo de EPCAR e AFA.
-- Seleção local de vários arquivos CSV, XLS, XLSX ou PDF, com prévia de nome/tamanho e validação apenas da extensão. O conteúdo não é enviado nem lido.
+- Seleção local de vários arquivos CSV, XLS, XLSX ou PDF, com validação do formato, leitura no navegador, sugestões de tipo de documento e prévia para conferência.
+- Extração local de linhas e coordenadas de texto selecionável em PDFs; arquivos sem camada de texto são sinalizados, sem OCR.
 - Página de classificação com filtro de concurso; o filtro por tipo de lista permanece indisponível enquanto não houver uma lista real carregada.
 - Campos de consulta por nome ou inscrição, com aviso explícito de que nenhum registro é pesquisado ou enviado.
 - Avisos de independência, caráter não oficial e limites desta versão.
@@ -46,7 +47,8 @@ O produto poderá incluir concursos de outras forças e instituições brasileir
 
 ## Fora do escopo implementado
 
-- Leitura ou extração de tabelas, OCR e processamento de PDFs/planilhas.
+- OCR e interpretação automática de PDFs digitalizados.
+- Classificação semântica universal de tabelas de concursos; a separação espacial preliminar de PDFs exige conferência com o original.
 - Persistência ou compartilhamento de arquivos importados.
 - Busca de candidatos em dados reais.
 - Motor de classificação/reclassificação e previsão de convocação.

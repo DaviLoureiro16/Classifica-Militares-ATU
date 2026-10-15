@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Este documento registra os testes automatizados da leitura local e a revisão das dependências usadas na importação. Todos os arquivos de teste são sintéticos, contêm apenas dados fictícios e não representam candidatos, editais ou resultados reais.
+Este documento registra os testes automatizados da leitura local e a revisão das dependências usadas na importação. Os PDFs de teste são montados sinteticamente e não são PDFs oficiais. Um teste usa os quatro registros de referência informados pelo usuário para verificar a reconstrução dos campos; isso não confirma que os valores constem em um documento oficial.
 
 Execute os testes com:
 
@@ -11,7 +11,15 @@ pnpm --filter @workspace/classifica-militares run test
 pnpm --filter @workspace/classifica-militares run typecheck
 ```
 
-Os testes exercitam leitura real dos arquivos fictícios com PDF.js e SheetJS, além da interação da página com seleção, fila, avisos e remoção. Eles não implementam nem testam classificação, cotas, reclassificação ou exportação de resultados.
+Os testes exercitam leitura dos arquivos sintéticos com PDF.js e SheetJS, além da interação da página com seleção, fila, avisos e remoção. Eles não implementam nem testam classificação, cotas, reclassificação ou exportação de resultados.
+
+## Estado da separação espacial preliminar
+
+- O cabeçalho tabular é reconhecido antes da atribuição às colunas. O esquema EPCAR só é ativado quando os campos centrais e uma quantidade suficiente de cabeçalhos compatíveis estão presentes; títulos de página e estruturas parcialmente semelhantes permanecem sem mapeamento.
+- As coordenadas do PDF.js orientam a reconstrução. Quando o PDF.js reúne números vizinhos em um único trecho de texto, os fragmentos numéricos são separados e posicionados para atribuição; divergências recuperadas por formato são marcadas para revisão.
+- Campos vazios não deslocam os valores seguintes. Linhas incompletas e trechos sem posição segura são preservados para conferência; nenhum conteúdo é completado por inferência.
+- A bateria atual cobre cabeçalhos institucionais, cabeçalho ausente em páginas de continuação, esquema incompatível, Clas deslocada, campos vazios e registros de referência em PDFs sintéticos.
+- **Validação oficial pendente:** nenhum PDF de resultado oficial está disponível no projeto. Para confirmar cabeçalhos e registros contra a fonte, é necessário fornecer o PDF oficial que contém a tabela de resultado analisada. Até lá, os resultados são validados somente com fixtures sintéticas.
 
 ## Arquivos e dependências
 
@@ -31,4 +39,4 @@ Se o produto exigir que a página também funcione sem contatos externos, as alt
 - PDF sem texto selecionável é sinalizado; não há OCR.
 - PDFs corrompidos ou incompatíveis devem produzir erro de leitura, não uma prévia de sucesso.
 - O limite atual é de 25 MB por arquivo. Vários documentos podem permanecer simultaneamente na memória da página.
-- Os testes automatizados não substituem a verificação manual em um navegador real com arquivos oficiais ou digitalizados. Para esta etapa, os testes usam somente conteúdo sintético.
+- Os testes automatizados não substituem a verificação manual em um navegador real com arquivos oficiais ou digitalizados. A bateria automatizada usa fixtures sintéticas, incluindo um PDF sintético com os quatro valores de referência fornecidos; ela não valida esses valores contra o PDF oficial.

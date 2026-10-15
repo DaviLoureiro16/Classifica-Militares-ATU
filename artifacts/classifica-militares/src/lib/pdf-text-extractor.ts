@@ -189,7 +189,10 @@ function matchesForGroup(group: { items: PositionedTextItem[] }): SchemaHeaderMa
 
 function isCandidateHeader(group: { items: PositionedTextItem[] }): boolean {
   const indexes = new Set(matchesForGroup(group).map((match) => match.index));
-  return indexes.has(0) && indexes.has(1) && indexes.has(2);
+  const hasCoreFields = [0, 1, 2, 3].every((index) => indexes.has(index));
+  const hasEnoughKnownFields = indexes.size >= 8;
+  const hasTableSpecificField = indexes.has(8) || indexes.has(11);
+  return hasCoreFields && hasEnoughKnownFields && hasTableSpecificField;
 }
 
 function makeTableLayout(
@@ -302,19 +305,42 @@ function positionedItems(items: unknown[]): { positioned: PositionedTextItem[]; 
       const b = transform[1] as number;
       const c = transform[2] as number;
       const d = transform[3] as number;
-      positioned.push({
-        text: value.str,
-        x: transform[4] as number,
-        y: transform[5] as number,
-        width: typeof value.width === 'number' && Number.isFinite(value.width) ? value.width : 0,
-        fontSize: Math.max(
+      const text = value.str.trim();
+      const x = transform[4] as number;
+      const y = transform[5] as number;
+      const width = typeof value.width === 'number' && Number.isFinite(value.width) ? value.width : 0;
+      const fontSize = Math.max(
           1,
           Math.hypot(a, b),
           Math.hypot(c, d),
           typeof value.height === 'number' && Number.isFinite(value.height) ? value.height : 0,
-        ),
-        hasEOL: value.hasEOL === true,
-      });
+        );
+      const parts = text.match(/\S+/g) ?? [text];
+      const firstNumericPart = parts.findIndex((part) => /\d/.test(part));
+      const segments = parts.length > 1 && firstNumericPart >= 0
+        ? [
+          ...(firstNumericPart > 0 ? [parts.slice(0, firstNumericPart).join(' ')] : []),
+          ...parts.slice(firstNumericPart),
+        ]
+        : [text];
+      let searchFrom = 0;
+
+      for (const segment of segments) {
+        const start = text.indexOf(segment, searchFrom);
+        const end = start + segment.length;
+        const measuredWidth = width > 0
+          ? width
+          : fontSize * Math.max(1, text.length) * 0.5;
+        positioned.push({
+          text: segment,
+          x: x + measuredWidth * (start / Math.max(1, text.length)),
+          y,
+          width: measuredWidth * (segment.length / Math.max(1, text.length)),
+          fontSize,
+          hasEOL: value.hasEOL === true && end === text.length,
+        });
+        searchFrom = end;
+      }
     } else {
       unpositioned.push(value.str);
     }
@@ -421,7 +447,39 @@ function makePdfLines(
       if (!assignment.aligned) needsReview = true;
 
       const value = item.text.trim();
-      const destination = assignment.index;
+      let destination = assignment.index;
+      const compactValue = value.replace(/\s+/g, '');
+      const hasRegistration = /^\d{6,}$/.test(cells[1].replace(/\s+/g, ''));
+
+      // Text can drift across a nearby geometric boundary when a result is
+      // right-aligned or a row has a different layout. Use only unmistakable
+      // value shapes to recover the two most error-prone adjacent fields.
+      if (
+        destination >= 2
+        && destination <= 7
+        && !cells[1]
+        && /^\d{6,}$/.test(compactValue)
+      ) {
+        destination = 1;
+        needsReview = true;
+      } else if (
+        destination === 3
+        && hasRegistration
+        && !cells[2]
+        && /^\d{1,5}$/.test(compactValue)
+      ) {
+        destination = 2;
+        needsReview = true;
+      } else if (
+        destination === 2
+        && hasRegistration
+        && !cells[3]
+        && /^\d+[.,]\d{2,4}$/.test(compactValue)
+      ) {
+        destination = 3;
+        needsReview = true;
+      }
+
       const isNameFragment = destination > 0
         && destination <= 8
         && /^[\p{L}\s.'’-]+$/u.test(value)
@@ -520,8 +578,12 @@ export function assessPdfQuality(
     }
     if (needsReviewLines > 0) reasons.push(`${needsReviewLines} linha(s) foram marcadas para conferir o alinhamento.`);
 
-    const layoutLooksInconsistent = dataLines.length >= 3
-      && ((fieldCountConsistency ?? 0) < 0.85 || incompleteLines > 0 || possibleShiftedLines > 0 || needsReviewLines > 0);
+    const layoutLooksInconsistent = dataLines.length > 0 && (
+      incompleteLines > 0
+      || possibleShiftedLines > 0
+      || needsReviewLines > 0
+      || (dataLines.length >= 3 && (fieldCountConsistency ?? 0) < 0.85)
+    );
     if (pagesWithoutText.length > 0 || layoutLooksInconsistent) {
       level = 'caution';
     } else if (headers.length > 0 && dataLines.length >= 3 && (fieldCountConsistency ?? 0) >= 0.85) {
@@ -574,10 +636,7 @@ export async function extractPdfPages(
       assertNotAborted(signal);
       onProgress(`PDF: lendo página ${pageNumber} de ${document.numPages}`);
       const page = await document.getPage(pageNumber);
-      const getTextContent = page.getTextContent as unknown as (
-        options: { disableCombineTextItems: boolean },
-      ) => Promise<{ items: unknown[] }>;
-      const content = await getTextContent({ disableCombineTextItems: true });
+      const content = await page.getTextContent();
       const parsed = makePdfLines(content.items, previousLayout);
       previousLayout = parsed.layout;
       const text = content.items

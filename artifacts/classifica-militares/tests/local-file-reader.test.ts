@@ -302,6 +302,35 @@ test('PDF EA CPCAR mantém inscrição, classificação, notas, data e status em
   assert.equal(result.quality.level, 'consistent');
 });
 
+test('PDF recupera Clas deslocada uma coluna sem confundir inscrição ou média final', async () => {
+  const page = makeCpcarResultPage([CPCAR_REFERENCE_RECORDS[1]]);
+  const shiftedClas = page.find((item) => item.text === '211');
+  assert.ok(shiftedClas);
+  shiftedClas.x = 301;
+
+  const result = await extractPdfPages(makeFictionalLayoutPdf([page]), pdfjs);
+  const candidate = result.pages[0].lines.find((line) => line.kind === 'candidate');
+
+  assert.equal(candidate?.record?.inscricao, '2120002');
+  assert.equal(candidate?.record?.clas, '211');
+  assert.equal(candidate?.record?.mf, '7.4625');
+  assert.equal(candidate?.record?.port, '6.2500');
+  assert.equal(candidate?.record?.ci, 'Convocado');
+  assert.equal(candidate?.needsReview, true);
+});
+
+test('PDF de estrutura diferente não recebe os cabeçalhos CPCAR por semelhança parcial', async () => {
+  const items = makeCpcarResultPage([CPCAR_REFERENCE_RECORDS[0]]);
+  const reducedHeader = new Set(['Nome', 'Inscricao', 'Clas', 'MF', 'Port', 'Mat', 'Ing']);
+  const page = items.filter((item) => item.y !== 165 || reducedHeader.has(item.text));
+
+  const result = await extractPdfPages(makeFictionalLayoutPdf([page]), pdfjs);
+
+  assert.equal(result.pages[0].lines.some((line) => line.kind === 'table-header'), false);
+  assert.equal(result.pages[0].lines.some((line) => line.kind === 'candidate'), false);
+  assert.ok(result.pages[0].lines.some((line) => line.kind === 'unmapped'));
+});
+
 test('PDF multipágina reutiliza o cabeçalho e não transforma títulos repetidos em registros', async () => {
   const result = await extractPdfPages(
     makeFictionalLayoutPdf([
@@ -351,13 +380,13 @@ test('PDF mantém linha incompleta para revisão e não desloca campos depois de
 
 test('PDF preserva trechos de posição incerta sem adicionar colunas à tabela', async () => {
   const page = makeCpcarResultPage(CPCAR_REFERENCE_RECORDS.slice(0, 1));
-  page.push({ text: 'FICTICIO trecho sem posição segura', x: 880, y: 145 });
+  page.push({ text: 'FICTICIO', x: 810, y: 145 });
   const result = await extractPdfPages(makeFictionalLayoutPdf([page]), pdfjs);
   const candidate = result.pages[0].lines.find((line) => line.kind === 'candidate');
 
   assert.ok(candidate);
   assert.equal(candidate.cells.length, 12);
-  assert.deepEqual(candidate.unmappedFragments, ['FICTICIO trecho sem posição segura']);
+  assert.deepEqual(candidate.unmappedFragments, ['FICTICIO']);
   assert.equal(candidate.needsReview, true);
   assert.equal(result.quality.possibleShiftedLines, 1);
 });

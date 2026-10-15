@@ -9,8 +9,8 @@ Classifica Militares is a free, public, independent platform for Brazilian milit
 
 **How to apply:** keep the platform's language institution-neutral, identify future competitions as unavailable until supported, and keep its non-official status clear.
 
-PDF.js can combine tightly spaced table headings into one text item, so whitespace alone is not a reliable column boundary.
+PDF.js can combine tightly spaced headings and adjacent numeric values into one text item, even when the PDF contains separate text operations. Preserve names as spans, split mixed numeric runs by approximate coordinates, and invoke `getTextContent` on its page object.
 
-**Why:** compact official-list PDFs may visually show distinct fields while exposing merged text runs during extraction.
+**Why:** in PDF.js 6, nearby values such as a rank and average can merge; treating the run as one field loses boundaries, while unbinding the page method can fail on its internal transport.
 
-**How to apply:** use repeated horizontal positions and recognized header labels to separate fields, and retain variable-width candidate rows for review.
+**How to apply:** trust recognized header anchors over item count, preserve uncertain rows for review, and never assume whitespace-separated PDF fields arrive as separate items.

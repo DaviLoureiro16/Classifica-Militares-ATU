@@ -1,0 +1,121 @@
+## RETOMADA DE TAREFA APÓS ESGOTAMENTO DE COTAS — CLASSIFICA MILITARES
+
+As cotas de uso foram esgotadas novamente durante a execução da tarefa, mas agora quero que você retome o trabalho a partir do estado atual do projeto.
+
+**NÃO reinicie a tarefa do zero. NÃO recrie o projeto. NÃO reverta alterações válidas. NÃO repita etapas que já foram concluídas e verificadas.**
+
+### 1. Primeiro, examine o estado atual
+
+Antes de modificar qualquer arquivo:
+
+1. Inspecione o código atual, os arquivos modificados e as alterações que já foram realizadas.
+2. Verifique o estado da implementação da extração espacial de tabelas em PDFs.
+3. Consulte a documentação existente em `docs/`, especialmente:
+   - `ESPECIFICACAO_FUNCIONAL.md`
+   - `REGRAS_DE_CLASSIFICACAO.md`
+   - `MATRIZ_DE_TESTES.md`
+   - `PENDENCIAS_E_AMBIGUIDADES.md`
+   - `ETAPA_3_VALIDACAO_IMPORTACAO.md`
+4. Identifique o último ponto efetivamente concluído, o que ficou incompleto e quais testes já passaram.
+5. Aproveite integralmente o trabalho válido que já existe.
+
+Não presuma que uma tarefa está concluída apenas porque existe código para ela. Verifique o estado real da implementação.
+
+### 2. Retome a correção da extração de tabelas PDF
+
+A tarefa principal é corrigir a funcionalidade **“Separação espacial preliminar”**, que atualmente identifica posições horizontais como se fossem colunas independentes e produz muitos campos com o cabeçalho “Cabeçalho não identificado”.
+
+O PDF oficial deve continuar sendo a fonte de verdade. A correção precisa ocorrer na lógica de extração e reconstrução dos dados, não apenas na aparência da tabela exibida na interface.
+
+Implemente ou finalize a solução a partir do código já existente, respeitando os seguintes requisitos:
+
+- Reconhecer o cabeçalho verdadeiro da tabela antes de determinar as colunas.
+- Utilizar as coordenadas dos elementos extraídos pelo PDF.js para reconstruir linhas e colunas de maneira consistente.
+- Identificar os limites das colunas com base nos cabeçalhos reais, considerando alinhamento, espaçamento e variações entre linhas.
+- Preservar os campos vazios sem deslocar os valores das colunas seguintes.
+- Não transformar cada coordenada horizontal em uma nova coluna.
+- Não usar títulos, nomes de instituições, informações de edição ou datas do cabeçalho da página como cabeçalhos da tabela de candidatos.
+- Evitar a criação de dezenas de colunas arbitrárias.
+- Tratar corretamente nomes completos, números de inscrição, classificação, média final, notas, datas de nascimento, indicadores e situação do candidato.
+- Reconhecer que algumas linhas podem apresentar quantidades diferentes de elementos ou campos vazios sem que isso signifique necessariamente um erro.
+- Não inventar, completar ou inferir valores que não estejam sustentados pelo documento original.
+- Preservar registros de candidatos que apareçam no resultado oficial, inclusive quando a situação deles for diferente da dos demais.
+
+Na tabela de referência do documento analisado, os cabeçalhos incluem:
+
+`Nome | Inscrição | Clas | MF | Port | Mat | Ing | Red | Dt_nasc | AC | RV | CI`
+
+Use esses nomes apenas quando forem compatíveis com o documento efetivamente importado. Não aplique esse esquema indiscriminadamente a PDFs de estrutura diferente.
+
+### 3. Valide os registros de referência
+
+Use os seguintes registros como verificações de consistência da extração, desde que estejam presentes no PDF oficial utilizado:
+
+- **ADAM QUINTANILHA DA SILVA** — inscrição `2030008`, classificação `1040`, MF `6.0812`, nascimento `19/06/2008`.
+- **ADLA DE ANDRADE SALES** — inscrição `2120002`, classificação `211`, MF `7.4625`, nascimento `18/11/2009`.
+- **ADRIAN CARVALHO DESVARS ARAUJO** — inscrição `2060002`, classificação `507`, MF `7.0125`, nascimento `23/12/2010`.
+- **ADRIANO HENRIQUE DO NASCIMENTO CARVALHO** — inscrição `2030013`, classificação `141`, MF `7.6625`, nascimento `18/02/2008`.
+
+Esses valores são referências para conferência, não autorização para substituir automaticamente os dados extraídos. Se houver divergência, examine o PDF original e identifique a causa.
+
+Verifique especialmente os casos em que a classificação aparece em uma posição espacial diferente das demais. Não confunda inscrição com classificação nem média final com nota de disciplina.
+
+### 4. Preserve o escopo existente
+
+Não crie novas páginas, abas, rotas, módulos ou funcionalidades sem necessidade.
+
+Se o trabalho anterior também estiver alterando o campo existente **“Tipo de documento”**, preserve a implementação já iniciada e confira se as opções previstas foram mantidas:
+
+1. Edital e anexos.
+2. Lista de resultado oficial.
+3. Lista de resultado de uma etapa.
+4. Lista de classificação após uma etapa.
+5. Lista histórica de classificação.
+6. Lista de convocação final e/ou matrícula.
+7. Retificação ou resultado de recurso.
+8. Outro documento relacionado ao concurso.
+
+Esse ajuste deve ocorrer no campo já existente, sem criar uma nova seção de navegação.
+
+Não remova funcionalidades válidas de importação de PDF, XLS, XLSX ou CSV. Mantenha o processamento local dos documentos, sem enviar os arquivos dos usuários para serviços externos.
+
+### 5. Testes e verificação
+
+Depois de retomar a implementação:
+
+1. Execute os testes já existentes.
+2. Corrija eventuais regressões causadas pelas alterações.
+3. Execute a verificação de tipos e a compilação de produção, conforme os comandos configurados no projeto.
+4. Teste a extração com o PDF oficial real, se ele estiver disponível no projeto.
+5. Confirme se os cabeçalhos e os registros de referência foram reconstruídos corretamente.
+6. Diferencie claramente testes com dados sintéticos de testes com documentos oficiais reais.
+
+Não declare que a extração está validada com PDFs oficiais se apenas testes sintéticos tiverem sido executados.
+
+Se o PDF oficial necessário não estiver disponível, não invente resultados. Conclua o que puder ser validado e informe exatamente qual arquivo é necessário para completar a validação.
+
+### 6. Como lidar com novas limitações de cotas
+
+Trabalhe incrementalmente. Antes de iniciar mudanças grandes, identifique as alterações já feitas e evite repetir trabalho.
+
+Se as cotas se esgotarem novamente:
+
+- Deixe os arquivos em um estado consistente.
+- Preserve todas as alterações válidas.
+- Não apague nem reverta trabalho apenas para simplificar uma retomada futura.
+- Registre em um arquivo de documentação existente, ou em uma nota apropriada dentro de `docs/`, o que foi concluído, quais arquivos foram alterados, quais testes passaram e qual é a próxima ação concreta.
+- Não duplique documentação se já existir um registro equivalente.
+
+### 7. Relatório obrigatório ao terminar
+
+Ao finalizar, informe de maneira objetiva:
+
+- De onde você retomou a tarefa.
+- O que já estava pronto antes da retomada e foi preservado.
+- O que foi implementado ou corrigido agora.
+- Quais arquivos foram alterados.
+- Quais testes, verificação de tipos e compilação foram executados, com seus resultados.
+- Se a validação utilizou PDF oficial real ou somente dados sintéticos.
+- O que ainda falta fazer, se houver.
+
+**Comece inspecionando o estado atual do projeto e continue a partir do último ponto incompleto. Não reinicie o trabalho do zero.**
